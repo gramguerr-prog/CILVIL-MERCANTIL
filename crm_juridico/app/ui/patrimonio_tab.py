@@ -1,10 +1,10 @@
-"""Pestaña de situación familiar y patrimonial del cliente."""
+"""Pestañas de situación familiar y de patrimonio del cliente."""
 from datetime import date
 
 from PyQt6.QtCore import QDate, Qt
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
-    QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
+    QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
     QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QTabWidget,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
@@ -12,7 +12,9 @@ from PyQt6.QtWidgets import (
 from app.models import clients as m_clients
 from app.models import patrimonio as m_patrimonio
 from app.models.patrimonio import CATEGORIAS
-from app.ui.widgets.common import DangerButton, PrimaryButton, fmt_eur
+from app.ui.widgets.common import (
+    DangerButton, PrimaryButton, autofit_columns, configure_table, fmt_eur,
+)
 
 ESTADOS_CIVILES = [
     "", "soltero/a", "casado/a", "pareja de hecho", "separado/a",
@@ -146,10 +148,7 @@ class AssetTable(QWidget):
         self.table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
         )
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.table, elastic=0)
         self.table.doubleClicked.connect(self._edit)
         lay.addWidget(self.table, 1)
 
@@ -188,6 +187,7 @@ class AssetTable(QWidget):
             self.table.setItem(i, 4, QTableWidgetItem(r["fecha"] or ""))
             self.table.setItem(i, 5, QTableWidgetItem(r["notas"] or ""))
             total += float(r["valor"] or 0)
+        autofit_columns(self.table)
         self.lbl_total.setText(f"<b>Total: {fmt_eur(total)}</b>")
 
     def _selected_id(self) -> int | None:
@@ -283,51 +283,51 @@ class ChildDialog(QDialog):
         self.accept()
 
 
-class PatrimonioTab(QWidget):
-    """Situación familiar y patrimonial completa de un cliente."""
+class FamiliaTab(QWidget):
+    """Situación familiar: estado civil, régimen económico e hijos."""
 
     def __init__(self, parent, client_id: int):
         super().__init__(parent)
         self.client_id = client_id
         self._child_ids: list[int] = []
+        self._loading = False
         self._build()
         self.reload()
 
     def _build(self):
         lay = QVBoxLayout(self)
 
-        # --- Situación familiar ---
-        fam = QGroupBox("Situación familiar")
-        fam_lay = QVBoxLayout(fam)
-
-        form = QFormLayout()
+        datos = QGroupBox("Datos familiares")
+        form = QFormLayout(datos)
         self.cmb_estado_civil = QComboBox()
         self.cmb_estado_civil.setEditable(True)
         self.cmb_estado_civil.addItems(ESTADOS_CIVILES)
-        self.cmb_estado_civil.currentTextChanged.connect(self._save_family_fields)
+        self.cmb_estado_civil.currentTextChanged.connect(self._save_fields)
         self.cmb_regimen = QComboBox()
         self.cmb_regimen.setEditable(True)
         self.cmb_regimen.addItems(REGIMENES)
-        self.cmb_regimen.currentTextChanged.connect(self._save_family_fields)
-        form.addRow("Estado civil", self.cmb_estado_civil)
-        form.addRow("Régimen económico", self.cmb_regimen)
-        fam_lay.addLayout(form)
-
-        hijos_row = QHBoxLayout()
+        self.cmb_regimen.currentTextChanged.connect(self._save_fields)
         self.chk_hijos = QCheckBox("Tiene hijos")
         self.chk_hijos.toggled.connect(self._on_toggle_hijos)
-        hijos_row.addWidget(self.chk_hijos)
-        hijos_row.addStretch(1)
-        b_add_child = PrimaryButton("+ Añadir hijo/a")
-        b_add_child.clicked.connect(self._add_child)
-        b_edit_child = QPushButton("Editar")
-        b_edit_child.clicked.connect(self._edit_child)
-        b_del_child = DangerButton("Eliminar")
-        b_del_child.clicked.connect(self._delete_child)
-        hijos_row.addWidget(b_add_child)
-        hijos_row.addWidget(b_edit_child)
-        hijos_row.addWidget(b_del_child)
-        fam_lay.addLayout(hijos_row)
+        form.addRow("Estado civil", self.cmb_estado_civil)
+        form.addRow("Régimen económico", self.cmb_regimen)
+        form.addRow("", self.chk_hijos)
+        lay.addWidget(datos)
+
+        hijos = QGroupBox("Hijos")
+        hijos_lay = QVBoxLayout(hijos)
+        botones = QHBoxLayout()
+        botones.addStretch(1)
+        b_add = PrimaryButton("+ Añadir hijo/a")
+        b_add.clicked.connect(self._add_child)
+        b_edit = QPushButton("Editar")
+        b_edit.clicked.connect(self._edit_child)
+        b_del = DangerButton("Eliminar")
+        b_del.clicked.connect(self._delete_child)
+        botones.addWidget(b_add)
+        botones.addWidget(b_edit)
+        botones.addWidget(b_del)
+        hijos_lay.addLayout(botones)
 
         self.tbl_hijos = QTableWidget(0, 4)
         self.tbl_hijos.setHorizontalHeaderLabels(
@@ -338,53 +338,10 @@ class PatrimonioTab(QWidget):
         self.tbl_hijos.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
         )
-        self.tbl_hijos.horizontalHeader().setStretchLastSection(True)
-        self.tbl_hijos.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
-        self.tbl_hijos.setMaximumHeight(160)
+        configure_table(self.tbl_hijos, elastic=3)
         self.tbl_hijos.doubleClicked.connect(self._edit_child)
-        fam_lay.addWidget(self.tbl_hijos)
-        lay.addWidget(fam)
-
-        # --- Patrimonio y cargas ---
-        pat = QGroupBox("Patrimonio y cargas")
-        pat_lay = QVBoxLayout(pat)
-
-        # Casillas rápidas: se marcan solas al añadir un registro, pero también
-        # pueden marcarse a mano cuando aún no hay detalle.
-        flags_row = QHBoxLayout()
-        flags_row.addWidget(QLabel("Tiene:"))
-        self.flag_checks: dict[str, QCheckBox] = {}
-        for categoria, columna in m_patrimonio.FLAG_BY_CATEGORIA.items():
-            etiqueta = CATEGORIAS[categoria][0]
-            chk = QCheckBox(etiqueta)
-            chk.toggled.connect(
-                lambda checked, col=columna: self._on_toggle_flag(col, checked)
-            )
-            self.flag_checks[categoria] = chk
-            flags_row.addWidget(chk)
-        flags_row.addStretch(1)
-        pat_lay.addLayout(flags_row)
-
-        self.tabs = QTabWidget()
-        self.asset_tables: dict[str, AssetTable] = {}
-        for categoria, (etiqueta, *_rest) in CATEGORIAS.items():
-            tabla = AssetTable(
-                self, self.client_id, categoria, on_change=self._reload_summary
-            )
-            self.asset_tables[categoria] = tabla
-            self.tabs.addTab(tabla, etiqueta)
-        pat_lay.addWidget(self.tabs)
-        lay.addWidget(pat, 1)
-
-        self.lbl_resumen = QLabel()
-        self.lbl_resumen.setStyleSheet(
-            "background: #ECF0F1; padding: 8px; border-radius: 4px;"
-        )
-        lay.addWidget(self.lbl_resumen)
-
-    # ---------- Carga y guardado ----------
+        hijos_lay.addWidget(self.tbl_hijos, 1)
+        lay.addWidget(hijos, 1)
 
     def reload(self):
         c = m_clients.get_client(self.client_id)
@@ -394,17 +351,11 @@ class PatrimonioTab(QWidget):
         self.cmb_estado_civil.setCurrentText(c["estado_civil"] or "")
         self.cmb_regimen.setCurrentText(c["regimen_economico"] or "")
         self.chk_hijos.setChecked(bool(c["tiene_hijos"]))
-        for categoria, chk in self.flag_checks.items():
-            columna = m_patrimonio.FLAG_BY_CATEGORIA[categoria]
-            chk.setChecked(bool(c[columna]))
         self._loading = False
         self._reload_children()
-        for tabla in self.asset_tables.values():
-            tabla.reload()
-        self._reload_summary()
 
-    def _save_family_fields(self, *_args):
-        if getattr(self, "_loading", False):
+    def _save_fields(self, *_args):
+        if self._loading:
             return
         m_clients.update_client_fields(self.client_id, {
             "estado_civil": self.cmb_estado_civil.currentText().strip() or None,
@@ -412,17 +363,10 @@ class PatrimonioTab(QWidget):
         })
 
     def _on_toggle_hijos(self, checked: bool):
-        if getattr(self, "_loading", False):
+        if self._loading:
             return
         m_clients.update_client_fields(
             self.client_id, {"tiene_hijos": 1 if checked else 0}
-        )
-
-    def _on_toggle_flag(self, columna: str, checked: bool):
-        if getattr(self, "_loading", False):
-            return
-        m_clients.update_client_fields(
-            self.client_id, {columna: 1 if checked else 0}
         )
 
     def _reload_children(self):
@@ -439,6 +383,13 @@ class PatrimonioTab(QWidget):
                 i, 2, QTableWidgetItem(_edad(r["fecha_nacimiento"]))
             )
             self.tbl_hijos.setItem(i, 3, QTableWidgetItem(r["notas"] or ""))
+        autofit_columns(self.tbl_hijos)
+        # Añadir un hijo marca la casilla en la BD; lo reflejamos aquí.
+        c = m_clients.get_client(self.client_id)
+        if c is not None:
+            self._loading = True
+            self.chk_hijos.setChecked(bool(c["tiene_hijos"]))
+            self._loading = False
 
     def _selected_child_id(self) -> int | None:
         row = self.tbl_hijos.currentRow()
@@ -467,6 +418,72 @@ class PatrimonioTab(QWidget):
                 == QMessageBox.StandardButton.Yes:
             m_patrimonio.delete_child(cid)
             self.reload()
+
+
+class PatrimonioTab(QWidget):
+    """Patrimonio y cargas: vehículos, cuentas, hipotecas, propiedades, deudas."""
+
+    def __init__(self, parent, client_id: int):
+        super().__init__(parent)
+        self.client_id = client_id
+        self._loading = False
+        self._build()
+        self.reload()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+
+        # Casillas rápidas: se marcan solas al añadir un registro, pero también
+        # pueden marcarse a mano cuando aún no hay detalle.
+        flags_row = QHBoxLayout()
+        flags_row.addWidget(QLabel("Tiene:"))
+        self.flag_checks: dict[str, QCheckBox] = {}
+        for categoria, columna in m_patrimonio.FLAG_BY_CATEGORIA.items():
+            etiqueta = CATEGORIAS[categoria][0]
+            chk = QCheckBox(etiqueta)
+            chk.toggled.connect(
+                lambda checked, col=columna: self._on_toggle_flag(col, checked)
+            )
+            self.flag_checks[categoria] = chk
+            flags_row.addWidget(chk)
+        flags_row.addStretch(1)
+        lay.addLayout(flags_row)
+
+        self.tabs = QTabWidget()
+        self.asset_tables: dict[str, AssetTable] = {}
+        for categoria, (etiqueta, *_rest) in CATEGORIAS.items():
+            tabla = AssetTable(
+                self, self.client_id, categoria, on_change=self._reload_summary
+            )
+            self.asset_tables[categoria] = tabla
+            self.tabs.addTab(tabla, etiqueta)
+        lay.addWidget(self.tabs, 1)
+
+        self.lbl_resumen = QLabel()
+        self.lbl_resumen.setStyleSheet(
+            "background: #ECF0F1; padding: 8px; border-radius: 4px;"
+        )
+        lay.addWidget(self.lbl_resumen)
+
+    def reload(self):
+        c = m_clients.get_client(self.client_id)
+        if c is None:
+            return
+        self._loading = True
+        for categoria, chk in self.flag_checks.items():
+            columna = m_patrimonio.FLAG_BY_CATEGORIA[categoria]
+            chk.setChecked(bool(c[columna]))
+        self._loading = False
+        for tabla in self.asset_tables.values():
+            tabla.reload()
+        self._reload_summary()
+
+    def _on_toggle_flag(self, columna: str, checked: bool):
+        if self._loading:
+            return
+        m_clients.update_client_fields(
+            self.client_id, {columna: 1 if checked else 0}
+        )
 
     def _reload_summary(self):
         # Añadir un registro marca su casilla automáticamente en la BD:

@@ -1,7 +1,47 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QWidget,
+    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QSizePolicy,
+    QTableWidget, QWidget,
 )
+
+# Ancho máximo (px) que puede alcanzar una columna ajustada al contenido.
+MAX_COL_WIDTH = 260
+MIN_COL_WIDTH = 55
+
+
+def configure_table(table: QTableWidget, elastic: int | None = None,
+                    max_width: int = MAX_COL_WIDTH) -> None:
+    """Prepara una tabla para que las columnas ocupen lo que necesitan.
+
+    `elastic` es el índice de la columna que absorbe el espacio sobrante
+    (normalmente la de texto libre). El resto se ajusta al contenido, con
+    un tope para que un valor largo no desplace a las demás. Todas las
+    columnas siguen siendo redimensionables a mano por el usuario.
+    """
+    header = table.horizontalHeader()
+    header.setStretchLastSection(False)
+    header.setMinimumSectionSize(MIN_COL_WIDTH)
+    for i in range(table.columnCount()):
+        header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
+    if elastic is not None and 0 <= elastic < table.columnCount():
+        header.setSectionResizeMode(elastic, QHeaderView.ResizeMode.Stretch)
+        table.setProperty("_elastic_col", elastic)
+    else:
+        table.setProperty("_elastic_col", -1)
+    table.setProperty("_max_col_width", max_width)
+
+
+def autofit_columns(table: QTableWidget) -> None:
+    """Reajusta los anchos al contenido actual. Llamar tras rellenar datos."""
+    elastic = table.property("_elastic_col")
+    elastic = -1 if elastic is None else int(elastic)
+    max_width = table.property("_max_col_width") or MAX_COL_WIDTH
+    table.resizeColumnsToContents()
+    for i in range(table.columnCount()):
+        if i == elastic:
+            continue
+        ancho = table.columnWidth(i)
+        table.setColumnWidth(i, max(MIN_COL_WIDTH, min(ancho, int(max_width))))
 
 
 def fmt_eur(value: float | int | None) -> str:

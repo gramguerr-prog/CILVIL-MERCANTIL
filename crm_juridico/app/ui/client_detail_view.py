@@ -18,9 +18,10 @@ from app.models import expenses as m_expenses
 from app.models import invoices as m_invoices
 from app.models import patrimonio as m_patrimonio
 from app.services import ai_agent
-from app.ui.patrimonio_tab import PatrimonioTab
+from app.ui.patrimonio_tab import FamiliaTab, PatrimonioTab
 from app.ui.widgets.common import (
-    DangerButton, PrimaryButton, SectionTitle, fmt_eur,
+    DangerButton, PrimaryButton, SectionTitle, autofit_columns,
+    configure_table, fmt_eur,
 )
 
 
@@ -41,6 +42,7 @@ class ClientDetailDialog(QDialog):
         lay.addWidget(self.tabs, 1)
 
         self.tab_info = self._build_info_tab()
+        self.tab_familia = FamiliaTab(self, self.client_id)
         self.tab_patrimonio = PatrimonioTab(self, self.client_id)
         self.tab_seguimiento = self._build_followup_tab()
         self.tab_docs = self._build_docs_tab()
@@ -49,7 +51,8 @@ class ClientDetailDialog(QDialog):
         self.tab_comercial = self._build_commercial_tab()
 
         self.tabs.addTab(self.tab_info, "Información general")
-        self.tabs.addTab(self.tab_patrimonio, "Familia y patrimonio")
+        self.tabs.addTab(self.tab_familia, "Familia")
+        self.tabs.addTab(self.tab_patrimonio, "Patrimonio")
         self.tabs.addTab(self.tab_seguimiento, "Seguimiento")
         self.tabs.addTab(self.tab_docs, "Documentos")
         self.tabs.addTab(self.tab_facturacion, "Facturación y pagos")
@@ -142,10 +145,7 @@ class ClientDetailDialog(QDialog):
         self.tbl_cases.verticalHeader().setVisible(False)
         self.tbl_cases.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.tbl_cases.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tbl_cases.horizontalHeader().setStretchLastSection(True)
-        self.tbl_cases.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.tbl_cases, elastic=2)
         self.tbl_cases.itemSelectionChanged.connect(self._reload_events)
         lay.addWidget(self.tbl_cases, 1)
 
@@ -167,10 +167,7 @@ class ClientDetailDialog(QDialog):
         )
         self.tbl_events.verticalHeader().setVisible(False)
         self.tbl_events.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl_events.horizontalHeader().setStretchLastSection(True)
-        self.tbl_events.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.tbl_events, elastic=2)
         lay.addWidget(self.tbl_events, 1)
         return w
 
@@ -198,10 +195,7 @@ class ClientDetailDialog(QDialog):
         )
         self.tbl_docs.verticalHeader().setVisible(False)
         self.tbl_docs.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl_docs.horizontalHeader().setStretchLastSection(True)
-        self.tbl_docs.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.tbl_docs, elastic=1)
         self.tbl_docs.doubleClicked.connect(self._open_doc)
         lay.addWidget(self.tbl_docs, 1)
         return w
@@ -225,10 +219,7 @@ class ClientDetailDialog(QDialog):
         )
         self.tbl_invoices.verticalHeader().setVisible(False)
         self.tbl_invoices.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl_invoices.horizontalHeader().setStretchLastSection(True)
-        self.tbl_invoices.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.tbl_invoices, elastic=0)
         lay.addWidget(self.tbl_invoices, 1)
 
         row2 = QHBoxLayout()
@@ -248,10 +239,7 @@ class ClientDetailDialog(QDialog):
         )
         self.tbl_payments.verticalHeader().setVisible(False)
         self.tbl_payments.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl_payments.horizontalHeader().setStretchLastSection(True)
-        self.tbl_payments.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.tbl_payments, elastic=4)
         lay.addWidget(self.tbl_payments, 1)
 
         self.lbl_bal_pestaña = QLabel()
@@ -278,10 +266,7 @@ class ClientDetailDialog(QDialog):
         )
         self.tbl_expenses.verticalHeader().setVisible(False)
         self.tbl_expenses.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl_expenses.horizontalHeader().setStretchLastSection(True)
-        self.tbl_expenses.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.tbl_expenses, elastic=1)
         lay.addWidget(self.tbl_expenses, 1)
         return w
 
@@ -337,6 +322,8 @@ class ClientDetailDialog(QDialog):
         self._reload_docs()
         self._reload_invoices()
         self._reload_expenses()
+        if hasattr(self, "tab_familia"):
+            self.tab_familia.reload()
         if hasattr(self, "tab_patrimonio"):
             self.tab_patrimonio.reload()
 
@@ -388,6 +375,7 @@ class ClientDetailDialog(QDialog):
             self.tbl_cases.setItem(i, 3, QTableWidgetItem(c["materia"] or ""))
             self.tbl_cases.setItem(i, 4, QTableWidgetItem(c["estado"] or ""))
             self.tbl_cases.setItem(i, 5, QTableWidgetItem(c["fecha_inicio"] or ""))
+        autofit_columns(self.tbl_cases)
         if cases:
             self.tbl_cases.selectRow(0)
 
@@ -437,6 +425,7 @@ class ClientDetailDialog(QDialog):
             self.tbl_events.setItem(i, 1, QTableWidgetItem(e["tipo"] or ""))
             self.tbl_events.setItem(i, 2, QTableWidgetItem(e["titulo"] or ""))
             self.tbl_events.setItem(i, 3, QTableWidgetItem(e["detalle"] or ""))
+        autofit_columns(self.tbl_events)
 
     def _add_event(self):
         cid = self._selected_case_id()
@@ -474,6 +463,7 @@ class ClientDetailDialog(QDialog):
             self.tbl_docs.setItem(i, 2, QTableWidgetItem(d["caso"] or ""))
             self.tbl_docs.setItem(i, 3, QTableWidgetItem(f"{size_kb:.1f} KB"))
             self.tbl_docs.setItem(i, 4, QTableWidgetItem(d["descripcion"] or ""))
+        autofit_columns(self.tbl_docs)
 
     def _upload_doc(self):
         files, _ = QFileDialog.getOpenFileNames(
@@ -533,6 +523,7 @@ class ClientDetailDialog(QDialog):
             self.tbl_invoices.setItem(i, 3, QTableWidgetItem(fmt_eur(inv["importe_iva"])))
             self.tbl_invoices.setItem(i, 4, QTableWidgetItem(fmt_eur(inv["importe_irpf"])))
             self.tbl_invoices.setItem(i, 5, QTableWidgetItem(fmt_eur(inv["total"])))
+        autofit_columns(self.tbl_invoices)
         pays = m_invoices.list_payments_by_client(self.client_id)
         self.tbl_payments.setRowCount(len(pays))
         self._pay_ids = []
@@ -543,6 +534,7 @@ class ClientDetailDialog(QDialog):
             self.tbl_payments.setItem(i, 2, QTableWidgetItem(p["numero"] or ""))
             self.tbl_payments.setItem(i, 3, QTableWidgetItem(p["metodo"] or ""))
             self.tbl_payments.setItem(i, 4, QTableWidgetItem(p["notas"] or ""))
+        autofit_columns(self.tbl_payments)
         self._reload_balance()
 
     def _new_invoice_for_client(self):
@@ -577,6 +569,7 @@ class ClientDetailDialog(QDialog):
             self.tbl_expenses.setItem(i, 3, QTableWidgetItem(fmt_eur(e["base_imponible"])))
             self.tbl_expenses.setItem(i, 4, QTableWidgetItem(fmt_eur(e["total"])))
             self.tbl_expenses.setItem(i, 5, QTableWidgetItem("Sí" if e["repercutible"] else "No"))
+        autofit_columns(self.tbl_expenses)
 
     def _add_expense_for_client(self):
         from app.ui.expense_edit_dialog import ExpenseEditDialog

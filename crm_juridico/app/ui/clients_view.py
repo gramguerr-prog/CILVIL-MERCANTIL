@@ -7,7 +7,10 @@ from PyQt6.QtWidgets import (
 from app.models import clients as m_clients
 from app.ui.client_detail_view import ClientDetailDialog
 from app.ui.client_edit_dialog import ClientEditDialog
-from app.ui.widgets.common import SearchBar, SectionTitle, PrimaryButton, DangerButton
+from app.ui.widgets.common import (
+    DangerButton, PrimaryButton, SearchBar, SectionTitle, autofit_columns,
+    configure_table,
+)
 
 
 class ClientsView(QWidget):
@@ -35,10 +38,7 @@ class ClientsView(QWidget):
             ["#", "Nombre", "Apellidos", "NIF", "Tipo", "Email", "Teléfono"]
         )
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
-        self.table.horizontalHeader().setStretchLastSection(True)
+        configure_table(self.table, elastic=5)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -79,6 +79,7 @@ class ClientsView(QWidget):
             self.table.setItem(i, 4, QTableWidgetItem(r["tipo"] or ""))
             self.table.setItem(i, 5, QTableWidgetItem(r["email"] or ""))
             self.table.setItem(i, 6, QTableWidgetItem(r["telefono"] or ""))
+        autofit_columns(self.table)
 
     def _selected_id(self) -> int | None:
         row = self.table.currentRow()

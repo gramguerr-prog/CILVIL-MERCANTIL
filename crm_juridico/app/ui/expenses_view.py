@@ -9,7 +9,8 @@ from PyQt6.QtWidgets import (
 from app.models import expenses as m_expenses
 from app.ui.expense_edit_dialog import ExpenseEditDialog
 from app.ui.widgets.common import (
-    DangerButton, PrimaryButton, SearchBar, SectionTitle, fmt_eur,
+    DangerButton, PrimaryButton, SearchBar, SectionTitle, autofit_columns,
+    configure_table, fmt_eur,
 )
 
 
@@ -49,10 +50,7 @@ class ExpensesView(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.table, elastic=1)
         self.table.doubleClicked.connect(self._on_edit)
         lay.addWidget(self.table, 1)
 
@@ -100,6 +98,7 @@ class ExpensesView(QWidget):
             sum_base += float(r["base_imponible"])
             sum_iva += float(r["importe_iva"])
             sum_total += float(r["total"])
+        autofit_columns(self.table)
         self.lbl_totales.setText(
             f"<b>Totales del periodo</b>: Base {fmt_eur(sum_base)} · "
             f"IVA soportado {fmt_eur(sum_iva)} · <b>Total {fmt_eur(sum_total)}</b>"

@@ -6,7 +6,9 @@ from PyQt6.QtWidgets import (
 )
 
 from app.models import clients as m_clients
-from app.ui.widgets.common import PrimaryButton, SearchBar, SectionTitle
+from app.ui.widgets.common import (
+    PrimaryButton, SearchBar, SectionTitle, autofit_columns, configure_table,
+)
 
 
 class EmailsView(QWidget):
@@ -36,10 +38,7 @@ class EmailsView(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.table, elastic=1)
         lay.addWidget(self.table, 1)
 
     def refresh(self):
@@ -61,6 +60,7 @@ class EmailsView(QWidget):
             self.table.setItem(i, 0, QTableWidgetItem(nombre))
             self.table.setItem(i, 1, QTableWidgetItem(email))
             self.table.setItem(i, 2, QTableWidgetItem(str(cid)))
+        autofit_columns(self.table)
 
     def _copy_all(self):
         emails = [

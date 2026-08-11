@@ -10,7 +10,8 @@ from app.database.db import fetch_all
 from app.models import clients as m_clients
 from app.models import documents as m_docs
 from app.ui.widgets.common import (
-    DangerButton, PrimaryButton, SearchBar, SectionTitle,
+    DangerButton, PrimaryButton, SearchBar, SectionTitle, autofit_columns,
+    configure_table,
 )
 
 
@@ -45,10 +46,7 @@ class DocumentsView(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.table, elastic=1)
         self.table.doubleClicked.connect(self._open)
         lay.addWidget(self.table, 1)
 
@@ -97,6 +95,7 @@ class DocumentsView(QWidget):
             size_kb = (d["tamano_bytes"] or 0) / 1024
             self.table.setItem(i, 3, QTableWidgetItem(f"{size_kb:.1f} KB"))
             self.table.setItem(i, 4, QTableWidgetItem(d["descripcion"] or ""))
+        autofit_columns(self.table)
 
     def _upload(self):
         cid = self.cmb_cliente.currentData()

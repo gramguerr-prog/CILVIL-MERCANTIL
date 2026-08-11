@@ -10,7 +10,8 @@ from app.models import invoices as m_invoices
 from app.services import pdf_invoice
 from app.ui.invoice_editor import InvoiceEditor
 from app.ui.widgets.common import (
-    DangerButton, PrimaryButton, SearchBar, SectionTitle, fmt_eur,
+    DangerButton, PrimaryButton, SearchBar, SectionTitle, autofit_columns,
+    configure_table, fmt_eur,
 )
 
 
@@ -48,10 +49,7 @@ class InvoicesView(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        configure_table(self.table, elastic=2)
         self.table.doubleClicked.connect(self._on_edit)
         lay.addWidget(self.table, 1)
 
@@ -105,6 +103,7 @@ class InvoicesView(QWidget):
             sum_iva += float(r["importe_iva"])
             sum_irpf += float(r["importe_irpf"])
             sum_total += float(r["total"])
+        autofit_columns(self.table)
         self.lbl_totales.setText(
             f"<b>Totales</b>: Base {fmt_eur(sum_base)} · "
             f"IVA {fmt_eur(sum_iva)} · IRPF {fmt_eur(sum_irpf)} · "
