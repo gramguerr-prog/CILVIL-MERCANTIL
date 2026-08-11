@@ -12,3 +12,5 @@ Thumbs.db
 *.egg-info/
 .idea/
 .vscode/
+ruta_datos.txt
+recursos/crm_512.png

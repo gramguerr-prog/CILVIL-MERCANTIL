@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import (
-    QFormLayout, QGroupBox, QHBoxLayout, QLineEdit, QMessageBox, QPushButton,
-    QVBoxLayout, QWidget,
+    QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QMessageBox, QPushButton, QVBoxLayout, QWidget,
 )
 
-from app.config import DEFAULT_SETTINGS
+from app import config
+from app.config import DATA_DIR, DEFAULT_SETTINGS
 from app.database.db import get_setting, set_setting
 from app.ui.widgets.common import PrimaryButton, SectionTitle
 
@@ -47,6 +48,7 @@ class SettingsView(QWidget):
         lay = QVBoxLayout(self)
         lay.addWidget(SectionTitle("Ajustes"))
 
+        lay.addWidget(self._grupo_carpeta_datos())
         lay.addWidget(self._group("Datos del despacho (aparecen en facturas)", DESPACHO_FIELDS))
         lay.addWidget(self._group("Facturación", FACTURA_FIELDS))
         lay.addWidget(self._group("Fiscalidad", FISCAL_FIELDS))
@@ -63,6 +65,90 @@ class SettingsView(QWidget):
         lay.addLayout(actions)
         lay.addStretch(1)
 
+    def _grupo_carpeta_datos(self) -> QGroupBox:
+        box = QGroupBox("Carpeta de datos")
+        v = QVBoxLayout(box)
+
+        explicacion = QLabel(
+            "Aquí se guardan tus clientes, documentos y facturas. Si la pones "
+            "en una carpeta sincronizada (OneDrive, iCloud Drive, Dropbox…) "
+            "podrás trabajar con el mismo despacho desde varios ordenadores.<br>"
+            "<b>Importante:</b> no abras el programa en dos equipos a la vez; "
+            "ciérralo en uno antes de abrirlo en el otro."
+        )
+        explicacion.setWordWrap(True)
+        explicacion.setStyleSheet("color: #555;")
+        v.addWidget(explicacion)
+
+        self.lbl_carpeta_datos = QLabel()
+        self.lbl_carpeta_datos.setWordWrap(True)
+        self.lbl_carpeta_datos.setStyleSheet(
+            "background: #ECF0F1; padding: 8px; border-radius: 4px;"
+        )
+        v.addWidget(self.lbl_carpeta_datos)
+
+        fila = QHBoxLayout()
+        b_cambiar = PrimaryButton("Cambiar carpeta…")
+        b_cambiar.clicked.connect(self._cambiar_carpeta_datos)
+        b_defecto = QPushButton("Usar la carpeta del programa")
+        b_defecto.clicked.connect(self._restaurar_carpeta_datos)
+        b_abrir = QPushButton("Abrir carpeta")
+        b_abrir.clicked.connect(self._abrir_carpeta_datos)
+        fila.addWidget(b_cambiar)
+        fila.addWidget(b_defecto)
+        fila.addWidget(b_abrir)
+        fila.addStretch(1)
+        v.addLayout(fila)
+        return box
+
+    def _refrescar_carpeta_datos(self):
+        configurada = config.ruta_datos_configurada()
+        if configurada is None:
+            texto = (
+                f"<b>En uso:</b> {DATA_DIR}<br>"
+                "<i>(carpeta propia del programa)</i>"
+            )
+        else:
+            texto = f"<b>En uso:</b> {DATA_DIR}"
+            if str(configurada) != str(DATA_DIR):
+                texto += (
+                    f"<br><span style='color:#C0392B'><b>Aviso:</b> la carpeta "
+                    f"configurada ({configurada}) no está disponible.</span>"
+                )
+        self.lbl_carpeta_datos.setText(texto)
+
+    def _cambiar_carpeta_datos(self):
+        carpeta = QFileDialog.getExistingDirectory(
+            self, "Elige la carpeta donde guardar los datos", str(DATA_DIR)
+        )
+        if not carpeta:
+            return
+        config.guardar_ruta_datos(carpeta)
+        self._refrescar_carpeta_datos()
+        QMessageBox.information(
+            self, "Carpeta cambiada",
+            "La nueva carpeta se usará al reiniciar el programa.\n\n"
+            f"Nueva carpeta:\n{carpeta}\n\n"
+            "Si ya tenías datos, copia el contenido de la carpeta anterior "
+            "a la nueva antes de volver a abrir el programa:\n"
+            f"{DATA_DIR}",
+        )
+
+    def _restaurar_carpeta_datos(self):
+        ans = QMessageBox.question(
+            self, "Carpeta del programa",
+            "¿Volver a guardar los datos en la carpeta 'data' del programa?\n"
+            "El cambio se aplicará al reiniciar.",
+        )
+        if ans == QMessageBox.StandardButton.Yes:
+            config.guardar_ruta_datos(None)
+            self._refrescar_carpeta_datos()
+
+    def _abrir_carpeta_datos(self):
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(DATA_DIR)))
+
     def _group(self, title: str, fields: list[tuple[str, str]]) -> QGroupBox:
         box = QGroupBox(title)
         form = QFormLayout(box)
@@ -75,6 +161,7 @@ class SettingsView(QWidget):
     def refresh(self):
         for key, inp in self._inputs.items():
             inp.setText(get_setting(key) or "")
+        self._refrescar_carpeta_datos()
 
     def _save(self):
         for key, inp in self._inputs.items():
