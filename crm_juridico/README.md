@@ -49,6 +49,18 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Actualizar el programa
+
+Para pasar a la última versión sin descargar ni descomprimir nada a mano, sin
+que se acumulen carpetas y **sin tocar tus datos**:
+
+- **Windows**: ejecuta `actualizar_windows.bat`
+- **macOS**: ejecuta `actualizar_macos.command`
+
+Descargan la última versión y sobrescriben los archivos del programa en la
+misma carpeta. La carpeta `data/` (clientes, documentos y facturas) queda
+intacta. Cierra el programa antes de actualizar.
+
 ## Estructura de datos
 
 - Todo se guarda en `data/crm.db` (SQLite).
