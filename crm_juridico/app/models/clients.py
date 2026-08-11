@@ -4,6 +4,10 @@ CLIENT_FIELDS = [
     "nombre", "apellidos", "nif", "tipo", "email", "telefono",
     "direccion", "ciudad", "codigo_postal", "pais",
     "irpf_nuevo", "notas", "activo",
+    # Situación familiar y patrimonial
+    "estado_civil", "regimen_economico",
+    "tiene_hijos", "num_hijos", "tiene_vehiculos", "tiene_cuentas",
+    "tiene_hipotecas", "tiene_propiedades", "tiene_deudas",
 ]
 
 
@@ -31,17 +35,30 @@ def get_client(client_id: int):
 
 
 def create_client(data: dict) -> int:
-    cols = ",".join(CLIENT_FIELDS)
-    placeholders = ",".join(["?"] * len(CLIENT_FIELDS))
-    values = [data.get(f) for f in CLIENT_FIELDS]
+    """Inserta solo las columnas presentes en data; el resto toma su valor
+    por defecto (evita escribir NULL en columnas NOT NULL)."""
+    fields = [f for f in CLIENT_FIELDS if f in data]
+    cols = ",".join(fields)
+    placeholders = ",".join(["?"] * len(fields))
+    values = [data[f] for f in fields]
     return execute(
         f"INSERT INTO clients({cols}) VALUES({placeholders})", values
     )
 
 
 def update_client(client_id: int, data: dict) -> None:
-    set_clause = ", ".join(f"{f} = ?" for f in CLIENT_FIELDS)
-    values = [data.get(f) for f in CLIENT_FIELDS] + [client_id]
+    """Actualiza solo las columnas presentes en data, para no machacar los
+    campos que el formulario que llama no gestiona (patrimonio, familia...)."""
+    update_client_fields(client_id, data)
+
+
+def update_client_fields(client_id: int, data: dict) -> None:
+    """Actualiza solo las columnas indicadas, dejando el resto intactas."""
+    fields = [f for f in data if f in CLIENT_FIELDS]
+    if not fields:
+        return
+    set_clause = ", ".join(f"{f} = ?" for f in fields)
+    values = [data[f] for f in fields] + [client_id]
     execute(f"UPDATE clients SET {set_clause} WHERE id = ?", values)
 
 

@@ -20,11 +20,47 @@ CREATE TABLE IF NOT EXISTS clients (
     fecha_alta      TEXT NOT NULL DEFAULT (date('now')),
     irpf_nuevo      INTEGER NOT NULL DEFAULT 0,           -- 1 si aplica retención reducida
     notas           TEXT,
-    activo          INTEGER NOT NULL DEFAULT 1
+    activo          INTEGER NOT NULL DEFAULT 1,
+    -- Situación familiar y patrimonial
+    estado_civil     TEXT,                                -- soltero, casado, divorciado...
+    regimen_economico TEXT,                               -- gananciales, separación de bienes
+    tiene_hijos      INTEGER NOT NULL DEFAULT 0,
+    num_hijos        INTEGER NOT NULL DEFAULT 0,
+    tiene_vehiculos  INTEGER NOT NULL DEFAULT 0,
+    tiene_cuentas    INTEGER NOT NULL DEFAULT 0,
+    tiene_hipotecas  INTEGER NOT NULL DEFAULT 0,
+    tiene_propiedades INTEGER NOT NULL DEFAULT 0,
+    tiene_deudas     INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_clients_nombre ON clients(nombre, apellidos);
 CREATE INDEX IF NOT EXISTS idx_clients_email  ON clients(email);
+
+-- Hijos del cliente (relevante para familia, sucesiones, custodia)
+CREATE TABLE IF NOT EXISTS client_children (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    nombre            TEXT,
+    fecha_nacimiento  TEXT,
+    notas             TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_children_client ON client_children(client_id);
+
+-- Patrimonio y cargas: vehículos, cuentas, hipotecas, propiedades, deudas
+CREATE TABLE IF NOT EXISTS client_assets (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id     INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    categoria     TEXT NOT NULL,   -- vehiculo|cuenta|hipoteca|propiedad|deuda
+    descripcion   TEXT NOT NULL,
+    identificador TEXT,            -- matrícula, IBAN, ref. catastral, nº préstamo
+    entidad       TEXT,            -- banco, financiera, acreedor
+    valor         REAL DEFAULT 0,  -- valor estimado, saldo o importe pendiente
+    fecha         TEXT,
+    notas         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_assets_client ON client_assets(client_id, categoria);
 
 CREATE TABLE IF NOT EXISTS cases (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

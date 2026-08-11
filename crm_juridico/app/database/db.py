@@ -14,11 +14,42 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+# Columnas añadidas después de la primera versión. Se aplican sobre bases de
+# datos ya creadas sin perder los datos existentes.
+_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "clients": [
+        ("estado_civil", "TEXT"),
+        ("regimen_economico", "TEXT"),
+        ("tiene_hijos", "INTEGER NOT NULL DEFAULT 0"),
+        ("num_hijos", "INTEGER NOT NULL DEFAULT 0"),
+        ("tiene_vehiculos", "INTEGER NOT NULL DEFAULT 0"),
+        ("tiene_cuentas", "INTEGER NOT NULL DEFAULT 0"),
+        ("tiene_hipotecas", "INTEGER NOT NULL DEFAULT 0"),
+        ("tiene_propiedades", "INTEGER NOT NULL DEFAULT 0"),
+        ("tiene_deudas", "INTEGER NOT NULL DEFAULT 0"),
+    ],
+}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    for table, columns in _MIGRATIONS.items():
+        existing = {
+            row["name"]
+            for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if not existing:
+            continue  # la tabla aún no existe; el schema la crea completa
+        for name, decl in columns:
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+
+
 def init_db() -> None:
     conn = get_connection()
     try:
         with open(_SCHEMA_FILE, "r", encoding="utf-8") as f:
             conn.executescript(f.read())
+        _migrate(conn)
         for key, value in DEFAULT_SETTINGS.items():
             conn.execute(
                 "INSERT OR IGNORE INTO settings(key, value) VALUES(?, ?)",
