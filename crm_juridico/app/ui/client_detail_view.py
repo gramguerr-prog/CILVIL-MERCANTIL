@@ -16,7 +16,9 @@ from app.models import clients as m_clients
 from app.models import documents as m_docs
 from app.models import expenses as m_expenses
 from app.models import invoices as m_invoices
+from app.models import patrimonio as m_patrimonio
 from app.services import ai_agent
+from app.ui.patrimonio_tab import PatrimonioTab
 from app.ui.widgets.common import (
     DangerButton, PrimaryButton, SectionTitle, fmt_eur,
 )
@@ -39,6 +41,7 @@ class ClientDetailDialog(QDialog):
         lay.addWidget(self.tabs, 1)
 
         self.tab_info = self._build_info_tab()
+        self.tab_patrimonio = PatrimonioTab(self, self.client_id)
         self.tab_seguimiento = self._build_followup_tab()
         self.tab_docs = self._build_docs_tab()
         self.tab_facturacion = self._build_billing_tab()
@@ -46,6 +49,7 @@ class ClientDetailDialog(QDialog):
         self.tab_comercial = self._build_commercial_tab()
 
         self.tabs.addTab(self.tab_info, "Información general")
+        self.tabs.addTab(self.tab_patrimonio, "Familia y patrimonio")
         self.tabs.addTab(self.tab_seguimiento, "Seguimiento")
         self.tabs.addTab(self.tab_docs, "Documentos")
         self.tabs.addTab(self.tab_facturacion, "Facturación y pagos")
@@ -333,6 +337,8 @@ class ClientDetailDialog(QDialog):
         self._reload_docs()
         self._reload_invoices()
         self._reload_expenses()
+        if hasattr(self, "tab_patrimonio"):
+            self.tab_patrimonio.reload()
 
     def _reload_balance(self):
         b = m_clients.client_balance(self.client_id)
@@ -584,9 +590,13 @@ class ClientDetailDialog(QDialog):
         c = m_clients.get_client(self.client_id)
         cases = [dict(r) for r in m_cases.list_cases_by_client(self.client_id)]
         bal = m_clients.client_balance(self.client_id)
+        patrimonio = m_patrimonio.patrimonio_summary(self.client_id)
+        hijos = [dict(r) for r in m_patrimonio.list_children(self.client_id)]
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            txt = ai_agent.commercial_proposal(dict(c), cases, bal)
+            txt = ai_agent.commercial_proposal(
+                dict(c), cases, bal, patrimonio=patrimonio, hijos=hijos
+            )
         except ai_agent.OllamaUnavailable as e:
             QApplication.restoreOverrideCursor()
             QMessageBox.information(self, "IA no disponible", str(e))
