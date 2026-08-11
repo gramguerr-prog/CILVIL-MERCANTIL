@@ -3,6 +3,9 @@
 Aplicación de escritorio local (Windows y macOS) para gestión integral de despacho de abogados:
 
 - Fichas de clientes con datos personales, contactos y correos.
+- Situación familiar y patrimonial de cada cliente: estado civil, régimen económico,
+  hijos (con edad calculada y aviso de menores), vehículos, cuentas corrientes,
+  hipotecas, propiedades y deudas, con cálculo de activo, pasivo y patrimonio neto.
 - Seguimiento de asuntos jurídicos por cliente con timeline.
 - Documentos asociados a cada cliente/asunto, ordenados cronológicamente.
 - Facturación con IVA, retenciones IRPF (estilo *declarando.es*), numeración correlativa y fecha de emisión.
@@ -10,7 +13,10 @@ Aplicación de escritorio local (Windows y macOS) para gestión integral de desp
 - Balance económico y análisis del despacho (ingresos, gastos, beneficio, IVA repercutido/soportado, IRPF retenido).
 - Estado de deuda por cliente: lo que te debe y lo que te ha pagado.
 - Agente de IA local (vía [Ollama](https://ollama.com)) para hacer preguntas y resumir documentos sin enviar datos a la nube.
-- Análisis comercial por cliente para detectar oportunidades de servicios legales adicionales.
+- Análisis comercial por cliente para detectar oportunidades de servicios legales
+  adicionales, cruzando su situación familiar y patrimonial con los asuntos ya
+  gestionados (p. ej. hijos menores → testamento; hipoteca → revisión de cláusulas;
+  deudas → Ley de Segunda Oportunidad).
 
 ## Requisitos
 
