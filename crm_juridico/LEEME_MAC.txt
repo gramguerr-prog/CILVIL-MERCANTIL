@@ -1,0 +1,114 @@
+====================================================================
+  CRM JURIDICO - INSTALACION EN MAC
+====================================================================
+
+PASO 0. ANTES DE NADA: DONDE PONER LA CARPETA
+-----------------------------------------------------------------
+Mueve la carpeta "crm_juridico" al DISCO INTERNO del Mac, por ejemplo
+a tu carpeta Documentos.
+
+  NO la dejes en un pendrive ni en un disco externo: el programa no
+  podra crear su entorno ahi y fallara.
+
+  Ruta recomendada:   /Users/TU_USUARIO/Documents/crm_juridico
+
+
+PASO 1. HERRAMIENTAS DE APPLE (solo la primera vez)
+-----------------------------------------------------------------
+Abre el Terminal (Cmd+Espacio, escribe "Terminal", Enter) y ejecuta:
+
+  xcode-select --install
+
+Aparecera una ventana de Apple: pulsa "Instalar" y acepta la licencia.
+Tarda entre 3 y 10 minutos. Espera a que termine antes de seguir.
+
+Si te dice que ya estan instaladas, perfecto, pasa al siguiente paso.
+
+
+PASO 2. COMPROBAR QUE TIENES PYTHON
+-----------------------------------------------------------------
+En el mismo Terminal:
+
+  python3 --version
+
+Si responde algo como "Python 3.11.x", ya lo tienes.
+Si dice que no se encuentra, descargalo de:
+  https://www.python.org/downloads/macos/
+
+
+PASO 3. ARRANCAR EL PROGRAMA
+-----------------------------------------------------------------
+En el Terminal, escribe "cd " (con el espacio), arrastra la carpeta
+crm_juridico dentro de la ventana del Terminal y pulsa Enter.
+Deberia quedar algo asi:
+
+  cd /Users/TU_USUARIO/Documents/crm_juridico
+
+Despues:
+
+  chmod +x *.command
+  ./run_macos.command
+
+La PRIMERA vez tarda unos minutos: crea el entorno y descarga las
+librerias. Cuando termine, se abre la ventana del CRM.
+
+Las siguientes veces arranca en segundos.
+
+
+PASO 4. ICONO EN EL ESCRITORIO (opcional, una sola vez)
+-----------------------------------------------------------------
+Con el programa ya arrancado al menos una vez, ejecuta:
+
+  ./crear_acceso_directo_macos.command
+
+Crea "CRM Juridico.app" en el Escritorio. Puedes arrastrarla al Dock.
+La primera vez que la abras, macOS puede avisarte de que viene de un
+desarrollador no identificado: pulsa con el BOTON DERECHO sobre la
+app y elige "Abrir". Solo hay que hacerlo una vez.
+
+
+SI MACOS BLOQUEA LOS ARCHIVOS .command
+-----------------------------------------------------------------
+Los archivos descargados de internet quedan "en cuarentena". Si al
+abrirlos sale un aviso de seguridad, ejecuta una sola vez en el
+Terminal, dentro de la carpeta del programa:
+
+  xattr -dr com.apple.quarantine .
+
+
+ACTUALIZAR MAS ADELANTE
+-----------------------------------------------------------------
+No hace falta volver a descargar nada. Ejecuta:
+
+  ./actualizar_macos.command
+
+Descarga la ultima version y sobrescribe los archivos del programa en
+esta misma carpeta. TUS DATOS NO SE TOCAN.
+
+
+DONDE ESTAN TUS DATOS
+-----------------------------------------------------------------
+En la subcarpeta "data": base de datos, documentos y facturas en PDF.
+Haz copia de seguridad de esa carpeta de vez en cuando.
+
+Si quieres compartir los mismos datos entre el PC y el Mac, en
+Ajustes > Carpeta de datos puedes apuntar ambos equipos a una carpeta
+de iCloud Drive, OneDrive o Dropbox. Importante: no abras el programa
+en los dos equipos a la vez.
+
+
+INTELIGENCIA ARTIFICIAL
+-----------------------------------------------------------------
+De fabrica usa Ollama, que funciona en tu propio Mac y no envia nada
+a internet. Para activarlo:
+
+  1. Descarga Ollama de https://ollama.com/download
+  2. En el Terminal:  ollama pull llama3.1
+
+Si prefieres usar Claude (mejores analisis, pero las consultas salen
+de tu equipo), configura la clave en Ajustes > Inteligencia artificial.
+Lee antes el aviso sobre secreto profesional y RGPD que aparece ahi.
+
+El resto del programa funciona con normalidad aunque no instales
+ninguna IA.
+====================================================================
