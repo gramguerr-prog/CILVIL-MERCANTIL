@@ -31,7 +31,8 @@ En el mismo Terminal:
 
   python3 --version
 
-Si responde algo como "Python 3.11.x", ya lo tienes.
+Si responde algo como "Python 3.9.6" o superior, ya lo tienes.
+El Python que trae macOS de fabrica es suficiente.
 Si dice que no se encuentra, descargalo de:
   https://www.python.org/downloads/macos/
 

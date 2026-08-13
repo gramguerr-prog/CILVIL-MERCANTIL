@@ -1,4 +1,6 @@
 """Generación de PDF de facturas con ReportLab."""
+
+from __future__ import annotations
 from pathlib import Path
 
 from reportlab.lib import colors

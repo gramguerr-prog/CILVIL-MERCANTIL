@@ -11,7 +11,7 @@ if not exist ".venv\Scripts\python.exe" (
     if errorlevel 1 (
         echo.
         echo ERROR: no se ha podido crear el entorno virtual.
-        echo Necesitas Python 3.10 o superior instalado.
+        echo Necesitas Python 3.9 o superior instalado.
         echo Descarga: https://www.python.org/downloads/windows/
         echo Durante la instalacion marca "Add Python to PATH".
         pause

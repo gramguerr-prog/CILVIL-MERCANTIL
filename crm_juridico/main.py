@@ -5,6 +5,16 @@ Ejecutar con:  python main.py   (Windows / macOS / Linux)
 import sys
 from pathlib import Path
 
+# El programa usa sintaxis y librerías disponibles desde Python 3.9, que es la
+# versión que trae macOS de fábrica. Con una anterior el fallo aparecería más
+# tarde y de forma confusa, así que se avisa aquí.
+if sys.version_info < (3, 9):
+    sys.exit(
+        "\nEste programa necesita Python 3.9 o superior.\n"
+        f"Estás usando Python {sys.version.split()[0]}.\n\n"
+        "Descarga una versión actual desde https://www.python.org/downloads/\n"
+    )
+
 # Permite ejecutar `python main.py` desde la raíz del proyecto.
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:

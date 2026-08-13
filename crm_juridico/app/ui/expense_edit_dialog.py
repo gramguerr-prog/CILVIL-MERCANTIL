@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from PyQt6.QtCore import QDate
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,

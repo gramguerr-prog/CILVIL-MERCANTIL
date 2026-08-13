@@ -28,7 +28,7 @@ Aplicación de escritorio local (Windows y macOS) para gestión integral de desp
 
 ## Requisitos
 
-- Python 3.10 o superior.
+- Python 3.9 o superior (macOS ya lo trae de fábrica; en Windows se descarga de python.org).
 - [Ollama](https://ollama.com/download) instalado en local con un modelo descargado (por ejemplo `llama3.1` o `qwen2.5`):
   ```
   ollama pull llama3.1

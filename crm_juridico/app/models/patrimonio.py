@@ -1,4 +1,6 @@
 """Hijos, patrimonio y cargas de cada cliente."""
+
+from __future__ import annotations
 from app.database.db import execute, fetch_all, fetch_one
 
 # categoria -> (etiqueta, etiqueta identificador, etiqueta entidad, etiqueta valor)

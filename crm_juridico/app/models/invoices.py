@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import date
 
 from app.database.db import execute, fetch_all, fetch_one, get_connection

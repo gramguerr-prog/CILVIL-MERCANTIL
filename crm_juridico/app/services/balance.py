@@ -1,4 +1,6 @@
 """Balance económico del despacho."""
+
+from __future__ import annotations
 from datetime import date
 
 from app.database.db import fetch_all, fetch_one

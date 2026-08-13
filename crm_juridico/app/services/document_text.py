@@ -1,4 +1,6 @@
 """Extracción de texto plano de PDF, DOCX y TXT para alimentar la IA."""
+
+from __future__ import annotations
 from pathlib import Path
 
 
