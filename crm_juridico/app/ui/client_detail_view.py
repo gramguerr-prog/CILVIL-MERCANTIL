@@ -275,15 +275,22 @@ class ClientDetailDialog(QDialog):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.addWidget(QLabel(
-            "<b>Análisis comercial personalizado</b><br>"
-            "Genera, con la IA local, un análisis para ofrecer nuevos "
-            "servicios legales a este cliente según su perfil e historial."
+            "<b>Análisis personalizado con IA</b><br>"
+            "Cruza la ficha, la familia, el patrimonio, los asuntos y la "
+            "facturación de este cliente. El motor de IA se elige en "
+            "<i>Ajustes &gt; Inteligencia artificial</i>."
         ))
         row = QHBoxLayout()
-        b = PrimaryButton("Generar propuesta con IA")
+        b_perfil = PrimaryButton("Analizar perfil")
+        b_perfil.clicked.connect(self._generate_profile)
+        b = PrimaryButton("Propuesta comercial")
         b.clicked.connect(self._generate_proposal)
+        row.addWidget(b_perfil)
         row.addWidget(b)
         row.addStretch(1)
+        self.lbl_ia_uso = QLabel()
+        self.lbl_ia_uso.setStyleSheet("color:#7F8C8D; font-size:11px;")
+        row.addWidget(self.lbl_ia_uso)
         lay.addLayout(row)
         self.txt_comercial = QPlainTextEdit()
         self.txt_comercial.setPlaceholderText(
@@ -579,27 +586,35 @@ class ClientDetailDialog(QDialog):
 
     # --- Commercial proposal ---
 
+    def _generate_profile(self):
+        self._run_ia(ai_agent.analizar_perfil, "análisis de perfil")
+
     def _generate_proposal(self):
-        c = m_clients.get_client(self.client_id)
-        cases = [dict(r) for r in m_cases.list_cases_by_client(self.client_id)]
-        bal = m_clients.client_balance(self.client_id)
-        patrimonio = m_patrimonio.patrimonio_summary(self.client_id)
-        hijos = [dict(r) for r in m_patrimonio.list_children(self.client_id)]
+        self._run_ia(ai_agent.propuesta_comercial, "propuesta comercial")
+
+    def _run_ia(self, funcion, etiqueta: str):
+        """Consulta a la IA. Bloquea la ficha mientras dura, que es aceptable
+        porque el usuario acaba de pedirla explícitamente."""
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        self.txt_comercial.setPlainText(f"Generando {etiqueta}…")
+        self.lbl_ia_uso.setText("")
         try:
-            txt = ai_agent.commercial_proposal(
-                dict(c), cases, bal, patrimonio=patrimonio, hijos=hijos
-            )
-        except ai_agent.OllamaUnavailable as e:
+            respuesta = funcion(self.client_id)
+        except ai_agent.IAError as e:
             QApplication.restoreOverrideCursor()
+            self.txt_comercial.setPlainText("")
             QMessageBox.information(self, "IA no disponible", str(e))
             return
         except Exception as e:
             QApplication.restoreOverrideCursor()
-            QMessageBox.critical(self, "Error IA", str(e))
+            self.txt_comercial.setPlainText("")
+            QMessageBox.critical(self, "Error de la IA", str(e))
             return
         QApplication.restoreOverrideCursor()
-        self.txt_comercial.setPlainText(txt)
+        self.txt_comercial.setPlainText(respuesta.texto)
+        self.lbl_ia_uso.setText(respuesta.resumen_uso())
+        if respuesta.aviso:
+            QMessageBox.warning(self, "Aviso de la IA", respuesta.aviso)
 
 
 # ===== Sub-dialogs =====

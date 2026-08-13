@@ -12,7 +12,15 @@ Aplicación de escritorio local (Windows y macOS) para gestión integral de desp
 - Gastos generales del despacho y gastos imputados a cada cliente.
 - Balance económico y análisis del despacho (ingresos, gastos, beneficio, IVA repercutido/soportado, IRPF retenido).
 - Estado de deuda por cliente: lo que te debe y lo que te ha pagado.
-- Agente de IA local (vía [Ollama](https://ollama.com)) para hacer preguntas y resumir documentos sin enviar datos a la nube.
+- Asistente de IA con dos motores seleccionables: **Ollama** (local, ningún dato
+  sale del equipo) o **Claude** (API de Anthropic, análisis mejores pero las
+  consultas viajan al proveedor). Hace consultas jurídicas, analiza el perfil de
+  cada cliente, resume documentos y responde preguntas sobre ellos.
+- **Auditoría automática** de los datos del despacho: facturas vencidas, huecos y
+  duplicados en la numeración, retenciones de IRPF mal aplicadas, totales
+  descuadrados, asuntos parados con riesgo de prescripción, gastos repercutibles
+  sin facturar y fichas incompletas o duplicadas. La detección es determinista
+  (reglas en código); la IA solo prioriza y explica el plan de acción.
 - Análisis comercial por cliente para detectar oportunidades de servicios legales
   adicionales, cruzando su situación familiar y patrimonial con los asuntos ya
   gestionados (p. ej. hijos menores → testamento; hipoteca → revisión de cláusulas;
@@ -48,6 +56,33 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
+
+## Inteligencia artificial
+
+En *Ajustes > Inteligencia artificial* eliges el motor:
+
+| | Ollama (por defecto) | Claude |
+|---|---|---|
+| Dónde corre | Tu ordenador | Servidores de Anthropic |
+| Datos del cliente | No salen del equipo | Viajan al proveedor |
+| Coste | Gratis | Por uso (se muestra en pantalla) |
+| Calidad | Correcta | Claramente superior |
+| Requisitos | `ollama pull llama3.1` | Clave de API |
+
+**Advertencia para el ejercicio profesional.** Enviar datos de clientes a un
+proveedor externo afecta al secreto profesional y al RGPD: necesitarás un
+contrato de encargado del tratamiento con el proveedor y valorar la
+confidencialidad de cada asunto. Por eso el programa viene con el motor local
+activado de fábrica, y el botón *Ver datos enviados* de la pestaña «Cliente»
+muestra exactamente qué se transmitiría antes de hacer ninguna consulta.
+
+**Clave de API.** Puedes escribirla en Ajustes (se guarda sin cifrar en la
+carpeta de datos) o, mejor, definir la variable de entorno
+`ANTHROPIC_API_KEY`, que tiene preferencia.
+
+Con Claude, el programa usa caché de prompts: la parte fija de las
+instrucciones se reutiliza entre consultas y su coste baja alrededor de un 90 %
+a partir de la segunda.
 
 ## Icono en el escritorio
 
