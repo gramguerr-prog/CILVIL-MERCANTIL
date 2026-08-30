@@ -26,7 +26,7 @@ def _cabecera_despacho() -> str:
     return f"{nombre}{f', {ciudad}' if ciudad else ''}"
 
 
-SISTEMA = f"""Eres el asistente interno de {_cabecera_despacho()}, un despacho \
+_PLANTILLA_SISTEMA = """Eres el asistente interno de {{DESPACHO}}, un despacho \
 de abogados que ejerce en España. Trabajas para el abogado titular, no para el \
 cliente final: tus respuestas son de uso interno y puedes ser directo.
 
@@ -82,6 +82,17 @@ propuesta, dilo y señala qué habría que preguntarle en la próxima visita.
 
 Sé honesto sobre lo que los datos no permiten concluir. Es más útil un "con esta \
 información no se puede determinar" que una respuesta segura y equivocada."""
+
+
+def sistema() -> str:
+    """Devuelve el prompt de sistema ya completado.
+
+    Se construye al vuelo, no al importar el módulo: incluye el nombre del
+    despacho, que vive en la base de datos, y la interfaz se importa antes de
+    que la base exista. Hacerlo aquí también permite que un cambio de nombre en
+    Ajustes se refleje sin reiniciar.
+    """
+    return _PLANTILLA_SISTEMA.replace("{{DESPACHO}}", _cabecera_despacho())
 
 
 # --------------------------------------------------------------------- fichas
@@ -194,7 +205,7 @@ def analizar_perfil(client_id: int) -> RespuestaIA:
         "4) Huecos de información: qué datos faltan en la ficha y por qué importan.\n\n"
         + contexto_cliente(client_id)
     )
-    return generar(SISTEMA, prompt)
+    return generar(sistema(), prompt)
 
 
 def propuesta_comercial(client_id: int) -> RespuestaIA:
@@ -211,7 +222,7 @@ def propuesta_comercial(client_id: int) -> RespuestaIA:
         "4) Qué NO conviene ofrecerle ahora y por qué.\n\n"
         + contexto_cliente(client_id)
     )
-    return generar(SISTEMA, prompt)
+    return generar(sistema(), prompt)
 
 
 def explicar_auditoria(hallazgos: list) -> RespuestaIA:
@@ -231,7 +242,7 @@ def explicar_auditoria(hallazgos: list) -> RespuestaIA:
         "== INCIDENCIAS ==\n"
         + auditoria.como_texto(hallazgos)
     )
-    return generar(SISTEMA, prompt)
+    return generar(sistema(), prompt)
 
 
 def oportunidades_cartera(limite: int = 25) -> RespuestaIA:
@@ -265,7 +276,7 @@ def oportunidades_cartera(limite: int = 25) -> RespuestaIA:
         "3) Los tres clientes con mayor potencial individual y por qué.\n\n"
         "== CARTERA ==\n" + "\n".join(bloques)
     )
-    return generar(SISTEMA, prompt)
+    return generar(sistema(), prompt)
 
 
 # ----------------------------------------------------------------- documentos
@@ -279,7 +290,7 @@ def resumir_documento(texto: str, nombre: str = "") -> RespuestaIA:
         "está incompleto o ilegible en alguna parte, dilo.\n\n"
         "== DOCUMENTO ==\n" + texto
     )
-    return generar(SISTEMA, prompt)
+    return generar(sistema(), prompt)
 
 
 def preguntar_documento(texto: str, pregunta: str) -> RespuestaIA:
@@ -290,9 +301,9 @@ def preguntar_documento(texto: str, pregunta: str) -> RespuestaIA:
         f"PREGUNTA: {pregunta}\n\n"
         "== DOCUMENTO ==\n" + texto
     )
-    return generar(SISTEMA, prompt)
+    return generar(sistema(), prompt)
 
 
 def consulta_libre(pregunta: str, contexto: str = "") -> RespuestaIA:
     prompt = pregunta if not contexto else f"{pregunta}\n\n== CONTEXTO ==\n{contexto}"
-    return generar(SISTEMA, prompt)
+    return generar(sistema(), prompt)

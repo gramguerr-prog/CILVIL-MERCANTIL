@@ -25,11 +25,16 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from app.config import APP_NAME, AVISO_DATOS, ICON_PATH
 from app.database.db import init_db
-from app.ui.main_window import MainWindow
 
 
 def main() -> int:
+    # La base de datos se prepara ANTES de importar la interfaz. Algunos
+    # módulos consultan ajustes al cargarse, y con la base todavía sin tablas
+    # el arranque moría con un «no such table». Importar aquí lo garantiza.
     init_db()
+
+    from app.ui.main_window import MainWindow
+
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setStyle("Fusion")
