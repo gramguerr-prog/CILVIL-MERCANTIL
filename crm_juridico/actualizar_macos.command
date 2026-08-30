@@ -36,8 +36,12 @@ fi
 
 echo "  [2/3] Extrayendo..."
 mkdir -p "$TMP/extraido"
-if ! unzip -q "$TMP/crm.zip" -d "$TMP/extraido"; then
-    echo "  ERROR: el archivo descargado esta danado."
+# Se extrae SOLO la carpeta del programa. El repositorio guarda ademas otros
+# archivos cuyos nombres llevan acentos, y el unzip de macOS no siempre puede
+# crearlos ("Illegal byte sequence"); ademas aqui no pintan nada.
+# El </dev/null evita que unzip se quede esperando una respuesta si pregunta.
+if ! unzip -q -o "$TMP/crm.zip" "*/crm_juridico/*" -d "$TMP/extraido" < /dev/null; then
+    echo "  ERROR: no se ha podido extraer la actualizacion."
     read -r -p "  Pulsa Enter para cerrar..."
     exit 1
 fi
