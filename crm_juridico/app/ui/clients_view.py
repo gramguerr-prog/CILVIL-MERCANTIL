@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 from app.models import clients as m_clients
 from app.ui.client_detail_view import ClientDetailDialog
 from app.ui.client_edit_dialog import ClientEditDialog
+from app.ui.import_dialog import ImportClientsDialog
 from app.ui.widgets.common import (
     DangerButton, PrimaryButton, SearchBar, SectionTitle, autofit_columns,
     configure_table,
@@ -30,6 +31,12 @@ class ClientsView(QWidget):
         top = QHBoxLayout()
         self.search = SearchBar("Buscar por nombre, apellidos, NIF o email...", self._on_search)
         top.addWidget(self.search, 1)
+        btn_import = QPushButton("Importar fichas...")
+        btn_import.setToolTip(
+            "Dar de alta varias fichas de golpe desde un archivo .json"
+        )
+        btn_import.clicked.connect(self._on_import)
+        top.addWidget(btn_import)
         btn_new = PrimaryButton("+ Nuevo cliente")
         btn_new.clicked.connect(self._on_new)
         top.addWidget(btn_new)
@@ -93,6 +100,11 @@ class ClientsView(QWidget):
 
     def _on_new(self):
         dlg = ClientEditDialog(self)
+        if dlg.exec():
+            self.refresh()
+
+    def _on_import(self):
+        dlg = ImportClientsDialog(self)
         if dlg.exec():
             self.refresh()
 

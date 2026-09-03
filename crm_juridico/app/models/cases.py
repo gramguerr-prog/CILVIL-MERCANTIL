@@ -36,9 +36,12 @@ def get_case(case_id: int):
 
 
 def create_case(data: dict) -> int:
-    cols = ",".join(CASE_FIELDS)
-    placeholders = ",".join(["?"] * len(CASE_FIELDS))
-    values = [data.get(f) for f in CASE_FIELDS]
+    """Inserta solo las columnas presentes en data, para que las que tienen
+    valor por defecto (fecha_inicio, estado) no reciban un NULL."""
+    fields = [f for f in CASE_FIELDS if f in data and data[f] is not None]
+    cols = ",".join(fields)
+    placeholders = ",".join(["?"] * len(fields))
+    values = [data[f] for f in fields]
     return execute(
         f"INSERT INTO cases({cols}) VALUES({placeholders})", values
     )
