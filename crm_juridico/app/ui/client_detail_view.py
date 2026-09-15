@@ -36,6 +36,7 @@ class ClientDetailDialog(QDialog):
         self.client_id = client_id
         # Estado de la pestaña de análisis comercial.
         self._hilo_ia: QThread | None = None
+        self._hilo_motor: QThread | None = None
         self._analisis: list = []
         self._analisis_id: int | None = None   # el guardado que se está editando
         self._tipo_pendiente = "manual"
@@ -717,23 +718,77 @@ class ClientDetailDialog(QDialog):
     # ---- Histórico de análisis ----
 
     def _reload_motor(self):
-        """Dice qué motor de IA hay puesto y si responde, para no adivinarlo."""
+        """Dice qué motor de IA hay puesto y si responde, para no adivinarlo.
+
+        La comprobación sale a la red (Ollama a localhost, Claude a
+        Anthropic), así que se hace en otro hilo: abrir la ficha de un
+        cliente no puede quedarse esperando a que conteste un servidor.
+        """
         try:
-            proveedor = proveedor_activo()
-            listo, mensaje = proveedor.disponible()
-        except Exception as e:                      # noqa: BLE001
-            listo, mensaje, proveedor = False, str(e), None
-        nombre = proveedor.nombre if proveedor else "?"
-        if listo:
-            self.lbl_motor.setText(
-                f"<span style='color:#27AE60'>●</span> Motor de IA: "
-                f"<b>{nombre}</b> — {mensaje}"
-            )
-        else:
-            self.lbl_motor.setText(
-                f"<span style='color:#C0392B'>●</span> Motor de IA: "
-                f"<b>{nombre}</b> — no disponible. {mensaje}"
-            )
+            nombre = proveedor_activo().nombre
+        except Exception:                           # noqa: BLE001
+            nombre = "?"
+        self.lbl_motor.setText(
+            f"<span style='color:#7F8C8D'>●</span> Motor de IA: "
+            f"<b>{nombre}</b> — comprobando…"
+        )
+        if self._hilo_motor is not None and self._hilo_motor.isRunning():
+            return
+        self._hilo_motor = QThread(self)
+        self._trabajo_motor = TrabajoIA(lambda: proveedor_activo().disponible())
+        self._trabajo_motor.moveToThread(self._hilo_motor)
+        self._hilo_motor.started.connect(self._trabajo_motor.run)
+        self._trabajo_motor.terminado.connect(self._motor_ok)
+        self._trabajo_motor.fallido.connect(self._motor_error)
+        self._trabajo_motor.terminado.connect(self._hilo_motor.quit)
+        self._trabajo_motor.fallido.connect(self._hilo_motor.quit)
+        self._hilo_motor.finished.connect(self._trabajo_motor.deleteLater)
+        self._hilo_motor.start()
+
+    def _motor_ok(self, resultado):
+        listo, mensaje = resultado
+        try:
+            nombre = proveedor_activo().nombre
+        except Exception:                           # noqa: BLE001
+            nombre = "?"
+        color = "#27AE60" if listo else "#C0392B"
+        cola = mensaje if listo else f"no disponible. {mensaje}"
+        self.lbl_motor.setText(
+            f"<span style='color:{color}'>●</span> Motor de IA: "
+            f"<b>{nombre}</b> — {cola}"
+        )
+
+    def _motor_error(self, mensaje: str):
+        self.lbl_motor.setText(
+            f"<span style='color:#C0392B'>●</span> Motor de IA: "
+            f"no se ha podido comprobar. {mensaje}"
+        )
+
+    def closeEvent(self, event):
+        """Espera a los hilos de la IA antes de cerrar.
+
+        Si la ficha se destruye con un hilo aún en marcha, Qt avisa con
+        «QThread: Destroyed while thread is still running» y el programa
+        puede caerse. Cerrar la ficha nada más abrirla, mientras se
+        comprueba el motor, es un caso de lo más normal.
+        """
+        self._parar_hilos()
+        super().closeEvent(event)
+
+    def done(self, resultado):
+        # Cerrar con el botón «Cerrar» o con Esc no pasa por closeEvent.
+        self._parar_hilos()
+        super().done(resultado)
+
+    def _parar_hilos(self):
+        for atributo in ("_hilo_motor", "_hilo_ia"):
+            hilo = getattr(self, atributo, None)
+            if hilo is not None and hilo.isRunning():
+                hilo.quit()
+                # La consulta en curso no se puede cancelar a media petición;
+                # se le da un margen y, si no, se deja que termine sola.
+                hilo.wait(5000)
+            setattr(self, atributo, None)
 
     def _reload_analyses(self):
         """Refresca la lista de guardados sin perder lo que haya en pantalla."""

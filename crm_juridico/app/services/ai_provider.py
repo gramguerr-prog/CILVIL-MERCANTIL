@@ -204,11 +204,19 @@ class ProveedorClaude(ProveedorIA):
         return anthropic.Anthropic(api_key=clave)
 
     def disponible(self) -> tuple[bool, str]:
+        """Comprueba de verdad que la clave sirve, no solo que esté escrita.
+
+        Antes bastaba con que la casilla no estuviera vacía, de modo que
+        «Probar conexión» daba por buena cualquier cosa y el fallo aparecía
+        más tarde, al pedir el primer análisis. Se consulta la lista de
+        modelos: valida la credencial, no gasta tokens y no cuesta nada.
+        """
         try:
-            import anthropic  # noqa: F401
+            import anthropic
         except ImportError:
             return False, "Falta la librería 'anthropic' (pip install anthropic)."
-        if not self._api_key():
+        clave = self._api_key()
+        if not clave:
             return False, (
                 "Falta la clave de API. Configúrala en Ajustes o en la "
                 "variable de entorno ANTHROPIC_API_KEY."
@@ -216,6 +224,27 @@ class ProveedorClaude(ProveedorIA):
         origen = ("variable de entorno"
                   if os.environ.get("ANTHROPIC_API_KEY", "").strip()
                   else "Ajustes")
+        try:
+            anthropic.Anthropic(api_key=clave).models.list(limit=1)
+        except anthropic.AuthenticationError:
+            return False, (
+                "La clave no es válida: Anthropic la ha rechazado.\n"
+                f"Revisa la que tienes puesta (procede de {origen}) y "
+                "compárala con la de https://console.anthropic.com"
+            )
+        except anthropic.PermissionDeniedError:
+            return False, (
+                "La clave es correcta pero no tiene permiso para usar la API.\n"
+                "Revisa en https://console.anthropic.com que la organización "
+                "tenga saldo y que la clave no esté restringida."
+            )
+        except anthropic.APIConnectionError:
+            return False, (
+                "No se ha podido conectar con Anthropic. Revisa tu conexión "
+                "a internet o si hay un cortafuegos por medio."
+            )
+        except Exception as e:                      # noqa: BLE001
+            return False, f"No se ha podido comprobar la clave: {e}"
         return True, (f"Claude listo · modelo {self._modelo()} · "
                       f"esfuerzo {self._effort()} · clave desde {origen}")
 
