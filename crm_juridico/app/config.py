@@ -99,6 +99,7 @@ DEFAULT_SETTINGS = {
     "ia_proveedor": "ollama",
     "ollama_url": "http://localhost:11434",
     "ollama_model": "llama3.1",
+    "ollama_num_ctx": "8192",
     "claude_api_key": "",
     "claude_model": "claude-opus-5",
     "claude_effort": "high",

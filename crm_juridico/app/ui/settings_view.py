@@ -34,6 +34,7 @@ FACTURA_FIELDS = [
 AI_FIELDS = [
     ("ollama_url", "URL de Ollama"),
     ("ollama_model", "Modelo local (ej: llama3.1)"),
+    ("ollama_num_ctx", "Ventana de contexto (tokens; 8192 recomendado)"),
     ("claude_model", "Modelo de Claude"),
 ]
 

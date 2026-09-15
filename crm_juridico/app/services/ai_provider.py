@@ -102,6 +102,30 @@ class ProveedorOllama(ProveedorIA):
     def _modelo(self) -> str:
         return get_setting("ollama_model") or "llama3.1"
 
+    def _ventana(self) -> int:
+        """Tamaño máximo de ventana que se permite pedirle al modelo.
+
+        Ollama usa 2048 tokens si no se le dice otra cosa, y en esa ventana
+        tiene que caber la pregunta Y la respuesta. Con la ficha de un
+        cliente cargada eso se queda corto y el modelo recorta el principio
+        del contexto sin avisar: el análisis sale seguro de sí mismo y
+        basado en datos incompletos, que es la peor forma de fallar.
+
+        Cuanta más ventana, más memoria RAM consume. 8192 va sobrado para
+        una ficha y funciona en un equipo normal; quien tenga poca memoria
+        puede bajarlo en Ajustes.
+        """
+        try:
+            valor = int(get_setting("ollama_num_ctx") or 8192)
+        except ValueError:
+            valor = 8192
+        return max(2048, min(valor, 32768))
+
+    @staticmethod
+    def _tokens_aprox(texto: str) -> int:
+        """Estimación prudente: en español ronda 3,5 caracteres por token."""
+        return int(len(texto) / 3.0) + 1
+
     def modelos(self) -> list[str]:
         try:
             r = requests.get(f"{self._url()}/api/tags", timeout=2)
@@ -135,18 +159,51 @@ class ProveedorOllama(ProveedorIA):
         ok, motivo = self.disponible()
         if not ok:
             raise IAError(motivo)
+
+        # La ventana ha de dar para la pregunta y para la respuesta. Se
+        # reserva sitio para el análisis y se comprueba que lo que se envía
+        # cabe; si no cabe, se avisa en vez de dejar que Ollama lo recorte
+        # por lo callado.
+        entrada = self._tokens_aprox(sistema) + self._tokens_aprox(prompt)
+        tope = self._ventana()
+        # Un modelo local no va a escribir 16.000 tokens en un tiempo
+        # razonable, y cada uno ocupa ventana: 2.000 sobran para un análisis.
+        respuesta = min(max_tokens, 2048)
+        ventana = min(tope, entrada + respuesta + 256)
+        aviso = None
+        if entrada + respuesta + 256 > tope:
+            aviso = (
+                f"El texto enviado (~{entrada} tokens) casi llena la ventana "
+                f"del modelo local ({tope}). El análisis puede salir "
+                "incompleto o basado en parte de los datos.\n\n"
+                "Soluciones: subir «Ventana de contexto» en Ajustes > "
+                "Inteligencia artificial si el equipo tiene memoria de sobra, "
+                "o usar un modelo con más ventana."
+            )
+
         payload = {
             "model": self._modelo(),
             "prompt": prompt,
             "system": sistema,
             "stream": False,
-            "options": {"temperature": 0.3, "num_predict": max_tokens},
+            "options": {
+                "temperature": 0.3,
+                "num_predict": respuesta,
+                "num_ctx": ventana,
+            },
         }
         try:
             r = requests.post(f"{self._url()}/api/generate", json=payload,
                               timeout=600)
             r.raise_for_status()
             datos = r.json()
+        except requests.Timeout as e:
+            raise IAError(
+                "Ollama ha tardado más de 10 minutos en responder.\n\n"
+                "Con un modelo grande en un equipo sin tarjeta gráfica esto "
+                "puede pasar. Prueba con un modelo más pequeño en Ajustes "
+                "(por ejemplo llama3.2 en lugar de llama3.1)."
+            ) from e
         except requests.RequestException as e:
             raise IAError(f"Error al consultar Ollama: {e}") from e
         return RespuestaIA(
@@ -155,6 +212,7 @@ class ProveedorOllama(ProveedorIA):
             modelo=self._modelo(),
             tokens_entrada=int(datos.get("prompt_eval_count") or 0),
             tokens_salida=int(datos.get("eval_count") or 0),
+            aviso=aviso,
         )
 
 
