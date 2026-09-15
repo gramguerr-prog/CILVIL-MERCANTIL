@@ -30,6 +30,9 @@ _MIGRATIONS: dict[str, list[tuple[str, str]]] = {
         ("tiene_propiedades", "INTEGER NOT NULL DEFAULT 0"),
         ("tiene_deudas", "INTEGER NOT NULL DEFAULT 0"),
     ],
+    "commercial_analyses": [
+        ("tipo", "TEXT"),
+    ],
 }
 
 

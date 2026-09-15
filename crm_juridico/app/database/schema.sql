@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS commercial_analyses (
     client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     fecha           TEXT NOT NULL DEFAULT (datetime('now')),
     contenido       TEXT NOT NULL,                         -- propuesta comercial generada o editada
+    tipo            TEXT,                                  -- perfil | propuesta | manual
     modelo_usado    TEXT
 );
 

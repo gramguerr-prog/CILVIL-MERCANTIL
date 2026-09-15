@@ -2,17 +2,18 @@ from __future__ import annotations
 
 from datetime import date
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtCore import QUrl
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QDateEdit, QDialog, QDoubleSpinBox, QFileDialog,
     QFormLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
-    QMessageBox, QPlainTextEdit, QPushButton, QTabWidget, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget,
+    QListWidget, QMessageBox, QPlainTextEdit, QPushButton, QSplitter,
+    QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 from PyQt6.QtCore import QDate
 
+from app.models import analyses as m_analyses
 from app.models import cases as m_cases
 from app.models import clients as m_clients
 from app.models import documents as m_docs
@@ -20,17 +21,25 @@ from app.models import expenses as m_expenses
 from app.models import invoices as m_invoices
 from app.models import patrimonio as m_patrimonio
 from app.services import ai_agent
+from app.services.ai_provider import proveedor_activo
 from app.ui.patrimonio_tab import FamiliaTab, PatrimonioTab
 from app.ui.widgets.common import (
     DangerButton, PrimaryButton, SectionTitle, autofit_columns,
     configure_table, fmt_eur,
 )
+from app.ui.widgets.ia import TrabajoIA
 
 
 class ClientDetailDialog(QDialog):
     def __init__(self, parent, client_id: int):
         super().__init__(parent)
         self.client_id = client_id
+        # Estado de la pestaña de análisis comercial.
+        self._hilo_ia: QThread | None = None
+        self._analisis: list = []
+        self._analisis_id: int | None = None   # el guardado que se está editando
+        self._tipo_pendiente = "manual"
+        self._modelo_pendiente = ""
         self.setMinimumSize(1000, 720)
         self._build()
         self._load()
@@ -282,23 +291,74 @@ class ClientDetailDialog(QDialog):
             "facturación de este cliente. El motor de IA se elige en "
             "<i>Ajustes &gt; Inteligencia artificial</i>."
         ))
+        self.lbl_motor = QLabel()
+        self.lbl_motor.setStyleSheet("font-size:11px;")
+        self.lbl_motor.setWordWrap(True)
+        lay.addWidget(self.lbl_motor)
+
         row = QHBoxLayout()
-        b_perfil = PrimaryButton("Analizar perfil")
-        b_perfil.clicked.connect(self._generate_profile)
-        b = PrimaryButton("Propuesta comercial")
-        b.clicked.connect(self._generate_proposal)
-        row.addWidget(b_perfil)
-        row.addWidget(b)
+        self.b_perfil = PrimaryButton("Analizar perfil")
+        self.b_perfil.setToolTip(
+            "Radiografía del cliente: situación, riesgos y puntos de atención."
+        )
+        self.b_perfil.clicked.connect(self._generate_profile)
+        self.b_propuesta = PrimaryButton("Propuesta comercial")
+        self.b_propuesta.setToolTip(
+            "Servicios que encajan con su situación, con el argumento de venta."
+        )
+        self.b_propuesta.clicked.connect(self._generate_proposal)
+        row.addWidget(self.b_perfil)
+        row.addWidget(self.b_propuesta)
         row.addStretch(1)
         self.lbl_ia_uso = QLabel()
         self.lbl_ia_uso.setStyleSheet("color:#7F8C8D; font-size:11px;")
         row.addWidget(self.lbl_ia_uso)
         lay.addLayout(row)
+
+        # Histórico a la izquierda, texto a la derecha.
+        div = QSplitter(Qt.Orientation.Horizontal)
+
+        izq = QWidget()
+        lay_izq = QVBoxLayout(izq)
+        lay_izq.setContentsMargins(0, 0, 0, 0)
+        lay_izq.addWidget(QLabel("<b>Guardados</b>"))
+        self.lst_analisis = QListWidget()
+        self.lst_analisis.currentRowChanged.connect(self._on_analysis_selected)
+        lay_izq.addWidget(self.lst_analisis, 1)
+        div.addWidget(izq)
+
+        der = QWidget()
+        lay_der = QVBoxLayout(der)
+        lay_der.setContentsMargins(0, 0, 0, 0)
         self.txt_comercial = QPlainTextEdit()
         self.txt_comercial.setPlaceholderText(
-            "Aquí aparecerá la propuesta. Puedes editarla y guardarla."
+            "Pulsa «Analizar perfil» o «Propuesta comercial», o escribe aquí "
+            "directamente. Revisa y corrige el texto antes de guardarlo: lo "
+            "que se guarda es lo que ves, no lo que dijo la IA."
         )
-        lay.addWidget(self.txt_comercial, 1)
+        lay_der.addWidget(self.txt_comercial, 1)
+
+        acciones = QHBoxLayout()
+        b_guardar = PrimaryButton("Guardar")
+        b_guardar.clicked.connect(self._save_analysis)
+        b_copiar = QPushButton("Copiar")
+        b_copiar.setToolTip("Copia el texto al portapapeles para pegarlo en un correo.")
+        b_copiar.clicked.connect(self._copy_analysis)
+        b_nuevo = QPushButton("Nuevo en blanco")
+        b_nuevo.clicked.connect(self._new_analysis)
+        b_borrar = DangerButton("Eliminar")
+        b_borrar.clicked.connect(self._delete_analysis)
+        acciones.addWidget(b_guardar)
+        acciones.addWidget(b_copiar)
+        acciones.addWidget(b_nuevo)
+        acciones.addStretch(1)
+        acciones.addWidget(b_borrar)
+        lay_der.addLayout(acciones)
+        div.addWidget(der)
+
+        div.setStretchFactor(0, 1)
+        div.setStretchFactor(1, 3)
+        lay.addWidget(div, 1)
         return w
 
     # ============ DATA ============
@@ -331,6 +391,8 @@ class ClientDetailDialog(QDialog):
         self._reload_docs()
         self._reload_invoices()
         self._reload_expenses()
+        self._reload_analyses()
+        self._reload_motor()
         if hasattr(self, "tab_familia"):
             self.tab_familia.reload()
         if hasattr(self, "tab_patrimonio"):
@@ -589,34 +651,172 @@ class ClientDetailDialog(QDialog):
     # --- Commercial proposal ---
 
     def _generate_profile(self):
-        self._run_ia(ai_agent.analizar_perfil, "análisis de perfil")
+        self._run_ia(ai_agent.analizar_perfil, "análisis de perfil", "perfil")
 
     def _generate_proposal(self):
-        self._run_ia(ai_agent.propuesta_comercial, "propuesta comercial")
+        self._run_ia(ai_agent.propuesta_comercial, "propuesta comercial", "propuesta")
 
-    def _run_ia(self, funcion, etiqueta: str):
-        """Consulta a la IA. Bloquea la ficha mientras dura, que es aceptable
-        porque el usuario acaba de pedirla explícitamente."""
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+    def _run_ia(self, funcion, etiqueta: str, tipo: str):
+        """Consulta a la IA en segundo plano, para no congelar la ficha.
+
+        Una propuesta comercial puede tardar más de un minuto según el modelo;
+        hecha en el hilo de la ventana, el sistema la daría por colgada.
+        """
+        if self._hilo_ia is not None and self._hilo_ia.isRunning():
+            QMessageBox.information(
+                self, "IA ocupada",
+                "Espera a que termine la consulta que ya está en marcha."
+            )
+            return
+        if self.txt_comercial.toPlainText().strip() and self._analisis_id is None:
+            ans = QMessageBox.question(
+                self, "Texto sin guardar",
+                "Hay un texto en pantalla que no está guardado.\n"
+                "¿Lo descartas y generas uno nuevo?",
+            )
+            if ans != QMessageBox.StandardButton.Yes:
+                return
+
+        self._tipo_pendiente = tipo
+        self._analisis_id = None
+        self.lst_analisis.setCurrentRow(-1)
+        self.b_perfil.setEnabled(False)
+        self.b_propuesta.setEnabled(False)
         self.txt_comercial.setPlainText(f"Generando {etiqueta}…")
-        self.lbl_ia_uso.setText("")
-        try:
-            respuesta = funcion(self.client_id)
-        except ai_agent.IAError as e:
-            QApplication.restoreOverrideCursor()
-            self.txt_comercial.setPlainText("")
-            QMessageBox.information(self, "IA no disponible", str(e))
-            return
-        except Exception as e:
-            QApplication.restoreOverrideCursor()
-            self.txt_comercial.setPlainText("")
-            QMessageBox.critical(self, "Error de la IA", str(e))
-            return
-        QApplication.restoreOverrideCursor()
-        self.txt_comercial.setPlainText(respuesta.texto)
+        self.lbl_ia_uso.setText("Procesando. Puede tardar según el modelo.")
+
+        self._hilo_ia = QThread(self)
+        self._trabajo_ia = TrabajoIA(funcion, self.client_id)
+        self._trabajo_ia.moveToThread(self._hilo_ia)
+        self._hilo_ia.started.connect(self._trabajo_ia.run)
+        self._trabajo_ia.terminado.connect(self._ia_ok)
+        self._trabajo_ia.fallido.connect(self._ia_error)
+        self._trabajo_ia.terminado.connect(self._hilo_ia.quit)
+        self._trabajo_ia.fallido.connect(self._hilo_ia.quit)
+        self._hilo_ia.finished.connect(self._trabajo_ia.deleteLater)
+        self._hilo_ia.start()
+
+    def _ia_ok(self, respuesta):
+        self._desbloquear_ia()
+        self.txt_comercial.setPlainText(respuesta.texto or "(respuesta vacía)")
         self.lbl_ia_uso.setText(respuesta.resumen_uso())
+        self._modelo_pendiente = respuesta.modelo
         if respuesta.aviso:
             QMessageBox.warning(self, "Aviso de la IA", respuesta.aviso)
+
+    def _ia_error(self, mensaje: str):
+        self._desbloquear_ia()
+        self.txt_comercial.setPlainText("")
+        self.lbl_ia_uso.setText("La consulta no se ha completado.")
+        QMessageBox.information(self, "IA no disponible", mensaje)
+
+    def _desbloquear_ia(self):
+        self.b_perfil.setEnabled(True)
+        self.b_propuesta.setEnabled(True)
+
+    # ---- Histórico de análisis ----
+
+    def _reload_motor(self):
+        """Dice qué motor de IA hay puesto y si responde, para no adivinarlo."""
+        try:
+            proveedor = proveedor_activo()
+            listo, mensaje = proveedor.disponible()
+        except Exception as e:                      # noqa: BLE001
+            listo, mensaje, proveedor = False, str(e), None
+        nombre = proveedor.nombre if proveedor else "?"
+        if listo:
+            self.lbl_motor.setText(
+                f"<span style='color:#27AE60'>●</span> Motor de IA: "
+                f"<b>{nombre}</b> — {mensaje}"
+            )
+        else:
+            self.lbl_motor.setText(
+                f"<span style='color:#C0392B'>●</span> Motor de IA: "
+                f"<b>{nombre}</b> — no disponible. {mensaje}"
+            )
+
+    def _reload_analyses(self):
+        """Refresca la lista de guardados sin perder lo que haya en pantalla."""
+        self._analisis = m_analyses.list_analyses(self.client_id)
+        self.lst_analisis.blockSignals(True)
+        self.lst_analisis.clear()
+        for fila in self._analisis:
+            self.lst_analisis.addItem(m_analyses.etiqueta(fila))
+        self.lst_analisis.setCurrentRow(-1)
+        self.lst_analisis.blockSignals(False)
+
+    def _on_analysis_selected(self, row: int):
+        if row < 0 or row >= len(self._analisis):
+            return
+        fila = self._analisis[row]
+        self._analisis_id = fila["id"]
+        self.txt_comercial.setPlainText(fila["contenido"] or "")
+        self.lbl_ia_uso.setText(
+            f"Guardado el {(fila['fecha'] or '')[:16]}"
+            + (f" · {fila['modelo_usado']}" if fila["modelo_usado"] else "")
+        )
+
+    def _new_analysis(self):
+        self._analisis_id = None
+        self._tipo_pendiente = "manual"
+        self._modelo_pendiente = ""
+        self.lst_analisis.setCurrentRow(-1)
+        self.txt_comercial.clear()
+        self.lbl_ia_uso.setText("")
+        self.txt_comercial.setFocus()
+
+    def _save_analysis(self):
+        texto = self.txt_comercial.toPlainText().strip()
+        if not texto:
+            QMessageBox.information(
+                self, "Nada que guardar",
+                "Genera un análisis o escribe el texto antes de guardarlo."
+            )
+            return
+        if self._analisis_id is None:
+            self._analisis_id = m_analyses.create_analysis(
+                self.client_id, texto,
+                tipo=self._tipo_pendiente,
+                modelo_usado=self._modelo_pendiente,
+            )
+            aviso = "Análisis guardado en la ficha del cliente."
+        else:
+            m_analyses.update_analysis(self._analisis_id, texto)
+            aviso = "Análisis actualizado."
+        self._reload_analyses()
+        for i, fila in enumerate(self._analisis):
+            if fila["id"] == self._analisis_id:
+                self.lst_analisis.blockSignals(True)
+                self.lst_analisis.setCurrentRow(i)
+                self.lst_analisis.blockSignals(False)
+                break
+        QMessageBox.information(self, "Guardado", aviso)
+
+    def _copy_analysis(self):
+        texto = self.txt_comercial.toPlainText().strip()
+        if not texto:
+            return
+        QApplication.clipboard().setText(texto)
+        self.lbl_ia_uso.setText("Copiado al portapapeles.")
+
+    def _delete_analysis(self):
+        if self._analisis_id is None:
+            QMessageBox.information(
+                self, "Eliminar",
+                "Elige primero un análisis guardado de la lista de la izquierda."
+            )
+            return
+        ans = QMessageBox.question(
+            self, "Eliminar análisis",
+            "¿Eliminar este análisis guardado? No se puede deshacer.",
+        )
+        if ans != QMessageBox.StandardButton.Yes:
+            return
+        m_analyses.delete_analysis(self._analisis_id)
+        self._analisis_id = None
+        self.txt_comercial.clear()
+        self.lbl_ia_uso.setText("")
+        self._reload_analyses()
 
 
 # ===== Sub-dialogs =====

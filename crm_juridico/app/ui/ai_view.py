@@ -1,7 +1,7 @@
 """Sección «Asistente IA»: consultas, análisis de clientes, auditoría y documentos."""
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject, QThread, Qt, pyqtSignal
+from PyQt6.QtCore import QThread, Qt
 from PyQt6.QtWidgets import (
     QComboBox, QFileDialog, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit,
     QPushButton, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem,
@@ -11,31 +11,14 @@ from PyQt6.QtWidgets import (
 from app.models import clients as m_clients
 from app.models import documents as m_docs
 from app.services import ai_agent, auditoria
-from app.services.ai_provider import IAError, RespuestaIA, proveedor_activo
+from app.services.ai_provider import RespuestaIA, proveedor_activo
 from app.services.document_text import extract_text
 from app.ui.widgets.common import (
     PrimaryButton, SectionTitle, autofit_columns, configure_table,
 )
+from app.ui.widgets.ia import TrabajoIA
 
 _COLOR_SEVERIDAD = {"alta": "#E74C3C", "media": "#E67E22", "baja": "#7F8C8D"}
-
-
-class _Trabajo(QObject):
-    """Ejecuta una llamada a la IA fuera del hilo de la interfaz."""
-    terminado = pyqtSignal(object)
-    fallido = pyqtSignal(str)
-
-    def __init__(self, funcion, *args, **kwargs):
-        super().__init__()
-        self._funcion, self._args, self._kwargs = funcion, args, kwargs
-
-    def run(self):
-        try:
-            self.terminado.emit(self._funcion(*self._args, **self._kwargs))
-        except IAError as e:
-            self.fallido.emit(str(e))
-        except Exception as e:
-            self.fallido.emit(f"Error inesperado: {e}")
 
 
 class _PanelIA(QWidget):
@@ -63,7 +46,7 @@ class _PanelIA(QWidget):
         self.salida.setPlainText("Consultando a la IA…")
         self.estado.setText("Procesando. Puede tardar según el modelo.")
         self._hilo = QThread(self)
-        self._trabajo = _Trabajo(funcion, *args, **kwargs)
+        self._trabajo = TrabajoIA(funcion, *args, **kwargs)
         self._trabajo.moveToThread(self._hilo)
         self._hilo.started.connect(self._trabajo.run)
         self._trabajo.terminado.connect(self._ok)
