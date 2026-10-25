@@ -528,12 +528,20 @@ class ClientDetailDialog(QDialog):
         for i, d in enumerate(docs):
             self._doc_ids.append(d["id"])
             size_kb = (d["tamano_bytes"] or 0) / 1024
+            try:
+                enlace = (d["enlace"] or "").strip()
+            except (IndexError, KeyError):
+                enlace = ""
+            # Un documento que solo es enlace no ocupa espacio: se marca así
+            # en lugar de enseñar «0,0 KB», que parecería un archivo roto.
+            tamano = "enlace" if (enlace and not (d["ruta_archivo"] or "").strip()) \
+                else f"{size_kb:.1f} KB"
             self.tbl_docs.setItem(
                 i, 0, QTableWidgetItem(d["fecha_doc"] or d["fecha_subida"][:10])
             )
             self.tbl_docs.setItem(i, 1, QTableWidgetItem(d["nombre"]))
             self.tbl_docs.setItem(i, 2, QTableWidgetItem(d["caso"] or ""))
-            self.tbl_docs.setItem(i, 3, QTableWidgetItem(f"{size_kb:.1f} KB"))
+            self.tbl_docs.setItem(i, 3, QTableWidgetItem(tamano))
             self.tbl_docs.setItem(i, 4, QTableWidgetItem(d["descripcion"] or ""))
         autofit_columns(self.tbl_docs)
 
@@ -568,11 +576,19 @@ class ClientDetailDialog(QDialog):
         row = self.tbl_docs.currentRow()
         if row < 0 or row >= len(self._doc_ids):
             return
-        path = m_docs.absolute_path(self._doc_ids[row])
-        if path is None or not path.exists():
-            QMessageBox.warning(self, "No encontrado", "El archivo no existe.")
+        destino = m_docs.destino(self._doc_ids[row])
+        if destino is None:
+            QMessageBox.warning(
+                self, "No encontrado",
+                "Este documento no apunta a ningún sitio: ni hay archivo "
+                "guardado ni enlace. Súbelo con «+ Subir documento»."
+            )
             return
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        clase, valor = destino
+        if clase == "archivo":
+            QDesktopServices.openUrl(QUrl.fromLocalFile(valor))
+        else:
+            QDesktopServices.openUrl(QUrl(valor))
 
     def _del_doc(self):
         row = self.tbl_docs.currentRow()

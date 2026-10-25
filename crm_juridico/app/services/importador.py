@@ -12,6 +12,7 @@ El archivo es un JSON con esta forma:
       "clientes": [
         {
           "nombre": "...", "apellidos": "...", "nif": "...",
+          "alias": ["Marga Lorenzo"],        # otras formas del nombre
           "email": "...", "telefono": "...", "direccion": "...",
           "ciudad": "...", "codigo_postal": "...",
           "estado_civil": "...", "regimen_economico": "...", "notas": "...",
@@ -28,7 +29,9 @@ El archivo es un JSON con esta forma:
 Reglas de convivencia con lo que ya hay en la base de datos:
 
   * El cliente se identifica por su NIF; si no lo lleva, por nombre y
-    apellidos. Importar dos veces el mismo archivo no duplica nada.
+    apellidos o por cualquiera de los ``alias``, que sirven para
+    reconocer la ficha cuando el nombre cambió de una tanda a otra.
+    Importar dos veces el mismo archivo no duplica nada.
   * Por defecto NO se pisa ningún dato ya grabado: solo se rellenan los
     campos que estén vacíos. Con ``sobrescribir=True`` el archivo manda.
   * Hijos, patrimonio y asuntos se añaden solo si no constan ya.
@@ -44,6 +47,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.models import cases as m_cases
+from app.models import documents as m_docs
 from app.models import clients as m_clients
 from app.models import patrimonio as m_patrimonio
 
@@ -72,6 +76,10 @@ class Resultado:
     bienes: int = 0
     asuntos: int = 0
     anotaciones: int = 0
+    documentos: int = 0
+    # Carpeta contra la que se resuelven las rutas de archivo del
+    # JSON, que es la del propio archivo importado.
+    base: Path | None = None
     detalle: list = field(default_factory=list)   # una línea por cliente
     avisos: list = field(default_factory=list)    # problemas no fatales
 
@@ -93,7 +101,8 @@ class Resultado:
         )
         lineas.append(
             f"Hijos: {self.hijos}   Patrimonio: {self.bienes}   "
-            f"Asuntos: {self.asuntos}   Anotaciones: {self.anotaciones}"
+            f"Asuntos: {self.asuntos}   Anotaciones: {self.anotaciones}   "
+            f"Documentos: {self.documentos}"
         )
         return "\n".join(lineas)
 
@@ -153,6 +162,8 @@ def resumen(clientes: list) -> str:
             extras.append(f"{len(c['patrimonio'])} bienes/deudas")
         if c.get("asuntos"):
             extras.append(f"{len(c['asuntos'])} asuntos")
+        if c.get("documentos"):
+            extras.append(f"{len(c['documentos'])} documentos")
         cola = f"  ({', '.join(extras)})" if extras else ""
         lineas.append(f"  [{marca}] {_nombre(c)}{cola}")
     return "\n".join(lineas)
@@ -160,13 +171,15 @@ def resumen(clientes: list) -> str:
 
 # ---------- Importación ----------
 
-def importar(clientes: list, sobrescribir: bool = False) -> Resultado:
+def importar(clientes: list, sobrescribir: bool = False,
+             base: str | Path | None = None) -> Resultado:
     """Vuelca los clientes en la base de datos y devuelve el informe.
 
     Un fallo en una ficha no detiene las demás: se anota como aviso y se
     sigue con la siguiente.
     """
     res = Resultado()
+    res.base = Path(base) if base else None
     for c in clientes:
         try:
             _importar_uno(c, sobrescribir, res)
@@ -196,7 +209,10 @@ def _importar_uno(c: dict, sobrescribir: bool, res: Resultado) -> None:
 
     n_hijos = _importar_hijos(client_id, c.get("hijos") or [], res)
     n_bienes = _importar_patrimonio(client_id, c.get("patrimonio") or [], res)
-    n_asuntos = _importar_asuntos(client_id, c.get("asuntos") or [], res)
+    n_asuntos, casos = _importar_asuntos(client_id, c.get("asuntos") or [], res)
+    n_docs = _importar_documentos(
+        client_id, c.get("documentos") or [], res, casos
+    )
 
     añadido = []
     if n_hijos:
@@ -205,6 +221,8 @@ def _importar_uno(c: dict, sobrescribir: bool, res: Resultado) -> None:
         añadido.append(f"+{n_bienes} patrimonio")
     if n_asuntos:
         añadido.append(f"+{n_asuntos} asuntos")
+    if n_docs:
+        añadido.append(f"+{n_docs} documentos")
     cola = f"  {', '.join(añadido)}" if añadido else ""
     res.detalle.append(f"  {_nombre(c)}: {estado}{cola}")
 
@@ -313,6 +331,67 @@ def _importar_asuntos(client_id: int, asuntos: list, res: Resultado) -> int:
             case_id, a.get("seguimiento") or [], res
         )
     res.asuntos += nuevos
+    return nuevos, ya
+
+
+def _importar_documentos(client_id: int, documentos: list, res: Resultado,
+                         casos: dict) -> int:
+    """Anota los documentos del expediente, por enlace o copiando el archivo.
+
+    Con ``enlace`` solo se guarda la dirección y el programa no ocupa
+    espacio: es la forma de tener el índice completo del expediente en la
+    ficha sin duplicar cada escaneo. Con ``archivo`` se copia el fichero
+    dentro de la carpeta de datos, como si se hubiera subido a mano.
+    """
+    ya = {_clave(d["nombre"]) for d in m_docs.list_documents_by_client(client_id)}
+    nuevos = 0
+    for d in documentos:
+        nombre = (d.get("nombre") or "").strip()
+        if not nombre:
+            res.avisos.append("Se ha ignorado un documento sin nombre.")
+            continue
+        if _clave(nombre) in ya:
+            continue
+        case_id = casos.get(_clave(d.get("asunto")))
+        enlace = (d.get("enlace") or "").strip()
+        archivo = (d.get("archivo") or "").strip()
+        try:
+            if archivo:
+                ruta = (res.base / archivo) if res.base else Path(archivo)
+                if not ruta.exists():
+                    res.avisos.append(
+                        f"No se encuentra el archivo «{archivo}» de "
+                        f"«{nombre}». Se anota solo el enlace."
+                        if enlace else
+                        f"No se encuentra el archivo «{archivo}» de «{nombre}»."
+                    )
+                    if not enlace:
+                        continue
+                else:
+                    m_docs.import_document(
+                        client_id, ruta, case_id=case_id,
+                        descripcion=d.get("descripcion") or "",
+                        fecha_doc=d.get("fecha_doc") or None,
+                        nombre=nombre,
+                    )
+                    ya.add(_clave(nombre))
+                    nuevos += 1
+                    continue
+            if not enlace:
+                res.avisos.append(
+                    f"«{nombre}» no trae ni archivo ni enlace: se ha ignorado."
+                )
+                continue
+            m_docs.add_reference(
+                client_id, nombre, enlace, case_id=case_id,
+                descripcion=d.get("descripcion") or "",
+                fecha_doc=d.get("fecha_doc") or None,
+            )
+            ya.add(_clave(nombre))
+            nuevos += 1
+        except Exception as e:                      # noqa: BLE001
+            res.avisos.append(f"No se ha podido anotar «{nombre}»: {e}")
+    res.documentos += nuevos
     return nuevos
 
 
@@ -397,15 +476,33 @@ def _campos_a_actualizar(existente, campos: dict, sobrescribir: bool) -> dict:
 
 
 def _buscar(c: dict):
-    """Localiza la ficha ya existente: primero por NIF, luego por nombre."""
+    """Localiza la ficha ya existente: por NIF, por nombre o por alias.
+
+    El alias existe porque la carpeta de un cliente y su nombre legal rara
+    vez coinciden: «Marga Lorenzo» en Drive es «Margarita Lorenzo Moruno»
+    en el formulario. Sin esto la importación crearía una segunda ficha y
+    el expediente quedaría partido en dos.
+    """
     nif = _clave_nif(c.get("nif"))
+    filas = m_clients.list_clients()
     if nif:
-        for fila in m_clients.list_clients():
+        for fila in filas:
             if _clave_nif(fila["nif"]) == nif:
                 return m_clients.get_client(fila["id"])
-    nombre = _clave(c.get("nombre"))
-    apellidos = _clave(c.get("apellidos"))
-    for fila in m_clients.list_clients():
-        if _clave(fila["nombre"]) == nombre and _clave(fila["apellidos"]) == apellidos:
+
+    # Nombre y apellidos, más los alias declarados en el archivo.
+    candidatos = [(_clave(c.get("nombre")), _clave(c.get("apellidos")))]
+    alias = c.get("alias") or []
+    if isinstance(alias, str):
+        alias = [alias]
+    for a in alias:
+        partes = " ".join(str(a).split()).split(" ", 1)
+        candidatos.append((
+            _clave(partes[0]),
+            _clave(partes[1] if len(partes) > 1 else ""),
+        ))
+    for fila in filas:
+        actual = (_clave(fila["nombre"]), _clave(fila["apellidos"]))
+        if actual in candidatos:
             return m_clients.get_client(fila["id"])
     return None

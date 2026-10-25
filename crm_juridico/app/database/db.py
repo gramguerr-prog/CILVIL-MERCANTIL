@@ -33,6 +33,9 @@ _MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     "commercial_analyses": [
         ("tipo", "TEXT"),
     ],
+    "documents": [
+        ("enlace", "TEXT"),
+    ],
 }
 
 

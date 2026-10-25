@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout, QLabel,
     QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout,
@@ -19,6 +21,7 @@ class ImportClientsDialog(QDialog):
         self.setWindowTitle("Importar fichas de clientes")
         self.resize(760, 560)
         self._clientes: list = []
+        self._ruta: Path | None = None
         self._importado = False
         self._build()
 
@@ -82,6 +85,7 @@ class ImportClientsDialog(QDialog):
             QMessageBox.warning(self, "Archivo no válido", str(e))
             return
 
+        self._ruta = Path(ruta)
         self.ruta.setText(ruta)
         self._importado = False
         self.btn_importar.setEnabled(True)
@@ -95,7 +99,12 @@ class ImportClientsDialog(QDialog):
         if not self._clientes:
             return
         res = importador.importar(
-            self._clientes, sobrescribir=self.sobrescribir.isChecked()
+            self._clientes,
+            sobrescribir=self.sobrescribir.isChecked(),
+            # Las rutas de archivo del JSON se resuelven desde la
+            # carpeta del propio archivo, no desde donde se arrancó
+            # el programa.
+            base=self._ruta.parent if self._ruta else None,
         )
         self._importado = True
         self.btn_importar.setEnabled(False)

@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS documents (
     client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     case_id         INTEGER REFERENCES cases(id) ON DELETE SET NULL,
     nombre          TEXT NOT NULL,
-    ruta_archivo    TEXT NOT NULL,                         -- ruta relativa a data/documents
+    ruta_archivo    TEXT NOT NULL,                         -- ruta relativa a data/documents ('' si es solo enlace)
+    enlace          TEXT,                                  -- URL externa (Drive); el archivo no se copia
     tipo_mime       TEXT,
     tamano_bytes    INTEGER,
     fecha_subida    TEXT NOT NULL DEFAULT (datetime('now')),
